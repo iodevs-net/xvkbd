@@ -1,6 +1,7 @@
 // ui.c - Motor Cairo con escalonado Apple y tamaños S/M/L
 #include "ui.h"
 #include "engine.h"
+#include "menu.h"
 #include <cairo/cairo.h>
 #include <cairo/cairo-xlib.h>
 #include <X11/Xutil.h>
@@ -220,7 +221,7 @@ static void render_to_backbuffer(UIState *state) {
     cairo_paint(cr);
 
     // Fondo de la ventana con bordes redondeados
-    cairo_set_source_rgba(cr, 0.1, 0.1, 0.1, state->theme.win_opacity);
+    cairo_set_source_rgba(cr, state->theme.bg_r, state->theme.bg_g, state->theme.bg_b, state->theme.win_opacity);
     draw_rounded_rect(cr, 0, 0, state->width, state->height,
                       state->theme.win_radius);
     cairo_fill(cr);
@@ -242,13 +243,23 @@ static void render_to_backbuffer(UIState *state) {
                        state->current_layer == LAYER_SYMBOLS);
 
         if (active)
-            cairo_set_source_rgba(cr, 0.38, 0.38, 0.38, 1.0);
+            cairo_set_source_rgba(cr, state->theme.key3_r, state->theme.key3_g, state->theme.key3_b, 1.0);
+        else if (kr->flags & KEYFLAG_MODIFIER)
+            cairo_set_source_rgba(cr, state->theme.key2_r, state->theme.key2_g, state->theme.key2_b, 1.0);
         else
-            cairo_set_source_rgba(cr, 0.22, 0.22, 0.22, 1.0);
+            cairo_set_source_rgba(cr, state->theme.key1_r, state->theme.key1_g, state->theme.key1_b, 1.0);
 
         draw_rounded_rect(cr, kr->x, kr->y, kr->w, kr->h,
                           state->theme.key_radius);
         cairo_fill(cr);
+
+        // Contorno si aplica
+        if (state->theme.border_width > 0) {
+            cairo_set_source_rgb(cr, state->theme.border_r, state->theme.border_g, state->theme.border_b);
+            cairo_set_line_width(cr, state->theme.border_width);
+            draw_rounded_rect(cr, kr->x, kr->y, kr->w, kr->h, state->theme.key_radius);
+            cairo_stroke(cr);
+        }
 
         // Etiqueta de la tecla
         const char *label = get_key_label(kr->key,
@@ -260,6 +271,11 @@ static void render_to_backbuffer(UIState *state) {
             kr->x + kr->w / 2.0 - ext.width / 2.0 - ext.x_bearing,
             kr->y + kr->h / 2.0 - ext.height / 2.0 - ext.y_bearing);
         cairo_show_text(cr, label);
+    }
+
+    // Renderizar menú si está abierto
+    if (state->menu_state != MENU_CLOSED) {
+        menu_render(state, cr);
     }
 
     cairo_destroy(cr);
@@ -294,9 +310,20 @@ void ui_loop(UIState *state) {
             }
             // Botón izquierdo: tecla o arrastre
             else if (ev.xbutton.button == 1) {
-                bool on_key = false;
                 int mx = ev.xbutton.x, my = ev.xbutton.y;
 
+                // Si el menú está abierto, delegar clics
+                if (state->menu_state != MENU_CLOSED) {
+                    if (menu_handle_click(state, mx, my)) {
+                        if (state->dirty) {
+                            render_to_backbuffer(state);
+                            XClearWindow(state->display, state->window);
+                        }
+                        continue;
+                    }
+                }
+
+                bool on_key = false;
                 for (int i = 0; i < state->num_rects; i++) {
                     KeyRect *kr = &state->rects[i];
                     if (mx >= kr->x && mx <= kr->x + kr->w &&
@@ -320,6 +347,11 @@ void ui_loop(UIState *state) {
                             state->current_layer =
                                 (state->current_layer == LAYER_SYMBOLS)
                                 ? LAYER_NORMAL : LAYER_SYMBOLS;
+                            state->dirty = true;
+                        }
+                        // Tecla de menú
+                        else if (strcmp(kr->key->label, "menu") == 0) {
+                            state->menu_state = (state->menu_state == MENU_CLOSED) ? MENU_MAIN : MENU_CLOSED;
                             state->dirty = true;
                         }
                         // Tecla normal
