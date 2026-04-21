@@ -6,12 +6,12 @@
 #include <stdbool.h>
 
 typedef struct {
-    const char *label;
     KeySym normal;
     KeySym shifted;
     KeySym altgr;
-    int width_weight;
+    const char *label;
     bool new_row;
+    int width_weight;
 } KeyDef;
 
 typedef struct {
@@ -20,7 +20,6 @@ typedef struct {
     int num_keys;
 } Layout;
 
-extern Layout layout_es;
-extern Layout layout_en;
+Layout* layout_get_default();
 
 #endif

@@ -3,8 +3,6 @@
 #include "ui.h"
 #include <stdio.h>
 
-extern Layout apple_layout;
-
 int main() {
     printf("Iniciando xvkbd_pro (Motor Cairo)...\n");
     
@@ -12,7 +10,7 @@ int main() {
     engine_init(&config);
     
     UIState ui;
-    ui_init(&ui, &apple_layout);
+    ui_init(&ui, layout_get_default());
     ui_loop(&ui);
     
     return 0;
