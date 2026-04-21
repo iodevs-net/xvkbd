@@ -1,82 +1,56 @@
-// layout.c - Distribución estilo Apple con escalonado natural
-// Incluye Esc, Ctrl, Alt, Print en posiciones accesibles
 #include "layout.h"
 #include <X11/keysym.h>
-#include <stddef.h>
+#include <string.h>
 
-static KeyDef apple_keys[] = {
-    // ── Fila 1: Esc + Números + Del (escalonado base) ──
-    {XK_Escape, 0, 0, "esc", false, 12},
-    {XK_1, XK_exclam, XK_bar, "1", false, 10},
-    {XK_2, XK_at, XK_quotedbl, "2", false, 10},
-    {XK_3, XK_numbersign, XK_numbersign, "3", false, 10},
-    {XK_4, XK_dollar, XK_asciitilde, "4", false, 10},
-    {XK_5, XK_percent, XK_percent, "5", false, 10},
-    {XK_6, XK_asciicircum, XK_ampersand, "6", false, 10},
-    {XK_7, XK_ampersand, XK_slash, "7", false, 10},
-    {XK_8, XK_asterisk, XK_parenleft, "8", false, 10},
-    {XK_9, XK_parenleft, XK_parenright, "9", false, 10},
-    {XK_0, XK_parenright, XK_equal, "0", false, 10},
-    {XK_BackSpace, 0, 0, "del", false, 16},
+static KeyDef default_keys[] = {
+    // Fila 1: Números y Escape
+    {XK_Escape, 0, 0, "esc", NULL, true, 8, 0},
+    {XK_1, XK_exclam, 0, "1", "!", false, 8, 0}, {XK_2, XK_at, 0, "2", "@", false, 8, 0}, {XK_3, XK_numbersign, 0, "3", "#", false, 8, 0},
+    {XK_4, XK_dollar, 0, "4", "$", false, 8, 0}, {XK_5, XK_percent, 0, "5", "%", false, 8, 0}, {XK_6, XK_asciicircum, 0, "6", "^", false, 8, 0},
+    {XK_7, XK_ampersand, 0, "7", "&", false, 8, 0}, {XK_8, XK_asterisk, 0, "8", "*", false, 8, 0}, {XK_9, XK_parenleft, 0, "9", "(", false, 8, 0},
+    {XK_0, XK_parenright, 0, "0", ")", false, 8, 0}, {XK_BackSpace, 0, 0, "del", NULL, false, 12, 0},
 
-    // ── Fila 2: Tab + QWERTY (tab más ancho = escalonado) ──
-    {XK_Tab, 0, 0, "tab", true, 15},
-    {XK_q, XK_Q, XK_backslash, "q", false, 10},
-    {XK_w, XK_W, XK_grave, "w", false, 10},
-    {XK_e, XK_E, XK_braceleft, "e", false, 10},
-    {XK_r, XK_R, XK_braceright, "r", false, 10},
-    {XK_t, XK_T, XK_bracketleft, "t", false, 10},
-    {XK_y, XK_Y, XK_bracketright, "y", false, 10},
-    {XK_u, XK_U, XK_minus, "u", false, 10},
-    {XK_i, XK_I, XK_plus, "i", false, 10},
-    {XK_o, XK_O, XK_underscore, "o", false, 10},
-    {XK_p, XK_P, XK_question, "p", false, 10},
+    // Fila 2: QWERTY
+    {XK_Tab, 0, 0, "tab", NULL, true, 12, 0},
+    {XK_q, XK_Q, 0, "q", "Q", false, 8, 0}, {XK_w, XK_W, 0, "w", "W", false, 8, 0}, {XK_e, XK_E, 0, "e", "E", false, 8, 0},
+    {XK_r, XK_R, 0, "r", "R", false, 8, 0}, {XK_t, XK_T, 0, "t", "T", false, 8, 0}, {XK_y, XK_Y, 0, "y", "Y", false, 8, 0},
+    {XK_u, XK_U, 0, "u", "U", false, 8, 0}, {XK_i, XK_I, 0, "i", "I", false, 8, 0}, {XK_o, XK_O, 0, "o", "O", false, 8, 0},
+    {XK_p, XK_P, 0, "p", "P", false, 8, 0}, {XK_Return, 0, 0, "ret", NULL, false, 12, 0},
 
-    // ── Fila 3: Caps + ASDF + Return (caps más ancho que tab) ──
-    {XK_Caps_Lock, 0, 0, "caps", true, 18},
-    {XK_a, XK_A, XK_less, "a", false, 10},
-    {XK_s, XK_S, XK_greater, "s", false, 10},
-    {XK_d, XK_D, XK_apostrophe, "d", false, 10},
-    {XK_f, XK_F, XK_semicolon, "f", false, 10},
-    {XK_g, XK_G, XK_colon, "g", false, 10},
-    {XK_h, XK_H, XK_asterisk, "h", false, 10},
-    {XK_j, XK_J, XK_exclam, "j", false, 10},
-    {XK_k, XK_K, XK_question, "k", false, 10},
-    {XK_l, XK_L, XK_bar, "l", false, 10},
-    {0xf1, 0xd1, 0, "\xc3\xb1", false, 10},
-    {XK_Return, 0, 0, "return", false, 18},
+    // Fila 3: ASDF
+    {XK_Caps_Lock, 0, 0, "caps", NULL, true, 14, 0},
+    {XK_a, XK_A, 0, "a", "A", false, 8, 0}, {XK_s, XK_S, 0, "s", "S", false, 8, 0}, {XK_d, XK_D, 0, "d", "D", false, 8, 0},
+    {XK_f, XK_F, 0, "f", "F", false, 8, 0}, {XK_g, XK_G, 0, "g", "G", false, 8, 0}, {XK_h, XK_H, 0, "h", "H", false, 8, 0},
+    {XK_j, XK_J, 0, "j", "J", false, 8, 0}, {XK_k, XK_K, 0, "k", "K", false, 8, 0}, {XK_l, XK_L, 0, "l", "L", false, 8, 0},
+    {0xf1, 0xd1, 0, "ñ", "Ñ", false, 8, 0}, {XK_apostrophe, XK_quotedbl, 0, "'", "\"", false, 10, 0},
 
-    // ── Fila 4: Shift + ZXCV (shift aún más ancho) ──
-    {XK_Shift_L, 0, 0, "shift", true, 24},
-    {XK_z, XK_Z, 0, "z", false, 10},
-    {XK_x, XK_X, 0, "x", false, 10},
-    {XK_c, XK_C, 0, "c", false, 10},
-    {XK_v, XK_V, 0, "v", false, 10},
-    {XK_b, XK_B, 0, "b", false, 10},
-    {XK_n, XK_N, 0, "n", false, 10},
-    {XK_m, XK_M, 0, "m", false, 10},
-    {XK_comma, XK_less, 0, ",", false, 10},
-    {XK_period, XK_greater, 0, ".", false, 10},
-    {XK_Shift_R, 0, 0, "shift", false, 24},
+    // Fila 4: ZXCV
+    {XK_Shift_L, 0, 0, "shift", NULL, true, 18, 0},
+    {XK_z, XK_Z, 0, "z", "Z", false, 8, 0}, {XK_x, XK_X, 0, "x", "X", false, 8, 0}, {XK_c, XK_C, 0, "c", "C", false, 8, 0},
+    {XK_v, XK_V, 0, "v", "V", false, 8, 0}, {XK_b, XK_B, 0, "b", "B", false, 8, 0}, {XK_n, XK_N, 0, "n", "N", false, 8, 0},
+    {XK_m, XK_M, 0, "m", "M", false, 8, 0}, {XK_comma, XK_less, 0, ",", "<", false, 8, 0}, {XK_period, XK_greater, 0, ".", ">", false, 8, 0},
+    {XK_Shift_R, 0, 0, "shift", NULL, false, 18, 0},
 
-    // ── Fila 5: Modificadores + Espacio + Print + Menú ──
-    {0, 0, 0, "size", true, 7},
-    {XK_Control_L, 0, 0, "ctrl", false, 7},
-    {0, 0, 0, "?123", false, 7},
-    {XK_Alt_L, 0, 0, "alt", false, 7},
-    {XK_Super_L, 0, 0, "cmd", false, 9},
-    {XK_space, 0, 0, " ", false, 38},
-    {XK_Super_R, 0, 0, "cmd", false, 9},
-    {XK_Alt_R, 0, 0, "alt", false, 7},
-    {XK_Print, 0, 0, "prt", false, 7},
-    {0, 0, 0, "menu", false, 7}
+    // Fila 5: Bottom
+    {0, 0, 0, "menu", NULL, true, 10, 0}, {XK_Control_L, 0, 0, "ctrl", NULL, false, 10, 0}, {XK_Alt_L, 0, 0, "alt", NULL, false, 10, 0},
+    {XK_space, 0, 0, " ", NULL, false, 40, 0}, {XK_Alt_R, 0, 0, "alt", NULL, false, 10, 0}, {0, 0, 0, "size", NULL, false, 10, 0}
 };
 
-static Layout apple_layout = {
-    .keys = apple_keys,
-    .num_keys = sizeof(apple_keys) / sizeof(apple_keys[0])
-};
+static Layout main_layout = { "Full QWERTY", default_keys, sizeof(default_keys)/sizeof(default_keys[0]) };
 
-Layout* layout_get_default() {
-    return &apple_layout;
+Layout* layout_get_default() { return &main_layout; }
+
+void layout_init(Layout *l) {
+    for (int i = 0; i < l->num_keys; i++) {
+        KeyDef *k = &l->keys[i];
+        k->flags = KEYFLAG_NORMAL;
+        if (!k->label) continue;
+        if (strcmp(k->label, "shift") == 0) k->flags = KEYFLAG_SHIFT | KEYFLAG_MODIFIER;
+        else if (strcmp(k->label, "menu") == 0 || strcmp(k->label, "size") == 0 || 
+                 strcmp(k->label, "ctrl") == 0 || strcmp(k->label, "alt") == 0 || 
+                 strcmp(k->label, "tab") == 0 || strcmp(k->label, "esc") == 0 || 
+                 strcmp(k->label, "del") == 0 || strcmp(k->label, "ret") == 0 ||
+                 strcmp(k->label, "caps") == 0)
+            k->flags = KEYFLAG_MODIFIER;
+    }
 }

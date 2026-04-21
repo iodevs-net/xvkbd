@@ -1,400 +1,149 @@
-// ui.c - Motor Cairo con escalonado Apple y tamaños S/M/L
-#include "ui.h"
-#include "engine.h"
-#include "menu.h"
-#include <cairo/cairo.h>
-#include <cairo/cairo-xlib.h>
-#include <X11/Xutil.h>
+#include "ui_internal.h"
+#include "ui_events.h"
+#include "ui_render_helper.h"
+#include "layout_engine.h"
+#include "x11_cairo_bridge.h"
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
-// ── Traducción de KeySym a Label ──
-typedef struct { KeySym ks; const char *label; } SymLabel;
-static const SymLabel sym_table[] = {
-    {XK_comma, ","}, {XK_period, "."}, {XK_slash, "/"}, {XK_backslash, "\\"},
-    {XK_bracketleft, "["}, {XK_bracketright, "]"}, {XK_braceleft, "{"}, {XK_braceright, "}"},
-    {XK_less, "<"}, {XK_greater, ">"}, {XK_quotedbl, "\""}, {XK_apostrophe, "'"},
-    {XK_underscore, "_"}, {XK_equal, "="}, {XK_plus, "+"}, {XK_minus, "-"},
-    {XK_asterisk, "*"}, {XK_ampersand, "&"}, {XK_percent, "%"}, {XK_dollar, "$"},
-    {XK_numbersign, "#"}, {XK_at, "@"}, {XK_exclam, "!"}, {XK_question, "?"},
-    {XK_bar, "|"}, {XK_asciitilde, "~"}, {XK_grave, "`"},
-    {XK_semicolon, ";"}, {XK_colon, ":"},
-    {0xf1, "\xc3\xb1"}, {0xd1, "\xc3\x91"},
-    {0, NULL}
-};
-
-static const char* keysym_to_label(KeySym ks) {
-    for (const SymLabel *s = sym_table; s->label; s++)
-        if (s->ks == ks) return s->label;
-    return NULL;
+void ui_calculate_layout(UI *ui) {
+    if (!ui || !ui->keyboard) return;
+    
+    Layout *layout = keyboard_get_layout(ui->keyboard);
+    Display *dpy = x11_window_get_display(ui->window);
+    int screen_w = DisplayWidth(dpy, DefaultScreen(dpy));
+    
+    double ratios[] = {SCREEN_WIDTH_RATIO_SMALL, SCREEN_WIDTH_RATIO_MEDIUM, SCREEN_WIDTH_RATIO_LARGE};
+    int kb_width = screen_w * ratios[ui->size_index];
+    int kb_height = kb_width * KEYBOARD_HEIGHT_RATIO;
+    int menu_offset = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
+    
+    ui->current_width = kb_width;
+    ui->current_height = kb_height + menu_offset;
+    
+    if (ui->key_bounds) free(ui->key_bounds);
+    ui->key_count = layout->num_keys;
+    ui->key_bounds = malloc(sizeof(Rectangle) * ui->key_count);
+    
+    layout_engine_calculate(layout, ui->current_width, ui->current_height, menu_offset, ui->key_bounds);
+    
+    // Only resize if needed to avoid event loops
+    // We don't have a direct x11_window_get_size yet, so we just compare with our current state
+    // But since we updated current_width/height above, we need to know if they CHANGED.
+    
+    x11_window_resize(ui->window, ui->current_width, ui->current_height);
+    renderer_resize(ui->renderer, ui->current_width, ui->current_height);
+    
+    ui->dirty = true;
 }
 
-static const char* get_key_label(KeyDef *k, KeyboardLayer layer, int flags) {
-    if (flags & KEYFLAG_MODIFIER) return k->label;
-    KeySym ks = (layer == LAYER_SHIFT) ? k->shifted :
-                (layer == LAYER_SYMBOLS) ? k->altgr : k->normal;
-    if (ks == 0) ks = k->normal;
-    const char *found = keysym_to_label(ks);
-    if (found) return found;
-    const char *name = XKeysymToString(ks);
-    if (name && strlen(name) == 1) return name;
-    return k->label;
-}
-
-// ── Geometría ──
-
-static void draw_rounded_rect(cairo_t *cr, double x, double y,
-                               double w, double h, double r) {
-    if (r > w / 2) r = w / 2;
-    if (r > h / 2) r = h / 2;
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + w - r, y + r,     r, -1.5708, 0);
-    cairo_arc(cr, x + w - r, y + h - r, r, 0,       1.5708);
-    cairo_arc(cr, x + r,     y + h - r, r, 1.5708,  3.14159);
-    cairo_arc(cr, x + r,     y + r,     r, 3.14159, 4.71239);
-    cairo_close_path(cr);
-}
-
-// ── Cálculo de la grilla con escalonado ──
-
-static void precompute_grid(UIState *state) {
-    // Paso 1: Identificar filas
-    state->num_rows = 0;
-    for (int i = 0; i < state->layout->num_keys; i++) {
-        if (state->layout->keys[i].new_row || i == 0) {
-            RowInfo *ri = &state->rows[state->num_rows++];
-            ri->start = i;
-            ri->count = 0;
-            ri->weight = 0;
-        }
-        RowInfo *ri = &state->rows[state->num_rows - 1];
-        ri->count++;
-        ri->weight += state->layout->keys[i].width_weight;
+UI* ui_create(UIConfig *config, Keyboard *keyboard, 
+              Renderer *renderer, X11Window *window,
+              FontManager *font_manager) {
+    UI *ui = calloc(1, sizeof(UI));
+    if (!ui) return NULL;
+    
+    ui->keyboard = keyboard;
+    ui->renderer = renderer;
+    ui->window = window;
+    ui->font_manager = font_manager;
+    
+    if (config) ui->config = *config;
+    else {
+        ui->config.initial_opacity = 0.94;
+        ui->config.initial_size = 1;
     }
-
-    // Paso 2: Escalar márgenes y gaps al tamaño actual
-    double scale = state->width / 1100.0;
-    int pad = (int)(16 * scale);
-    if (pad < 6) pad = 6;
-    int gap = (int)(5 * scale);
-    if (gap < 2) gap = 2;
-    int key_radius = (int)(6 * scale);
-    if (key_radius < 3) key_radius = 3;
-    state->theme.key_radius = key_radius;
-    state->theme.font_size = (int)(13.5 * scale);
-    if (state->theme.font_size < 8) state->theme.font_size = 8;
-
-    int total_w = state->width - 2 * pad;
-    int total_h = state->height - 2 * pad;
-    int row_h = (total_h - (state->num_rows - 1) * gap) / state->num_rows;
-
-    // Paso 3: Posicionar teclas
-    state->num_rects = 0;
-    int cur_y = pad;
-
-    for (int r = 0; r < state->num_rows; r++) {
-        RowInfo *ri = &state->rows[r];
-        int cur_x = pad;
-        int usable_w = total_w - (gap * (ri->count - 1));
-
-        for (int j = 0; j < ri->count; j++) {
-            int idx = ri->start + j;
-            KeyDef *k = &state->layout->keys[idx];
-            int kw = (k->width_weight * usable_w) / ri->weight;
-
-            KeyRect *kr = &state->rects[state->num_rects++];
-            kr->x = cur_x;
-            kr->y = cur_y;
-            kr->w = kw;
-            kr->h = row_h;
-            kr->key = k;
-
-            // Clasificar tipo de tecla
-            kr->flags = KEYFLAG_NORMAL;
-            if (strcmp(k->label, "shift") == 0)
-                kr->flags = KEYFLAG_SHIFT | KEYFLAG_MODIFIER;
-            else if (strcmp(k->label, "?123") == 0)
-                kr->flags = KEYFLAG_SYMBOLS | KEYFLAG_MODIFIER;
-            else if (strcmp(k->label, "size") == 0 ||
-                     strcmp(k->label, "caps") == 0 ||
-                     strcmp(k->label, "del") == 0 ||
-                     strcmp(k->label, "return") == 0 ||
-                     strcmp(k->label, "tab") == 0 ||
-                     strcmp(k->label, "esc") == 0 ||
-                     strcmp(k->label, "ctrl") == 0 ||
-                     strcmp(k->label, "alt") == 0 ||
-                     strcmp(k->label, "cmd") == 0 ||
-                     strcmp(k->label, "prt") == 0 ||
-                     strcmp(k->label, " ") == 0)
-                kr->flags = KEYFLAG_MODIFIER;
-
-            cur_x += kw + gap;
-        }
-        cur_y += row_h + gap;
-    }
+    
+    ui->opacity = ui->config.initial_opacity;
+    ui->size_index = ui->config.initial_size;
+    ui->menu_visible = ui->config.show_menu_bar;
+    ui->dirty = true;
+    
+    ui_calculate_layout(ui);
+    x11_window_set_event_callback(ui->window, ui_event_callback, ui);
+    x11_window_show(ui->window);
+    x11_window_set_always_on_top(ui->window, true);
+    
+    return ui;
 }
 
-// ── Tamaños S / M / L ──
-
-void ui_set_size(UIState *state, UISize size) {
-    state->current_size = size;
-    int screen_w = DisplayWidth(state->display, DefaultScreen(state->display));
-
-    // S=25%, M=50%, L=92% (nunca se sale de pantalla)
-    double ratios[] = {0.25, 0.50, 0.92};
-    state->width = (int)(screen_w * ratios[size]);
-    state->height = (int)(state->width / 3.2);
-
-    // Limitar al borde de pantalla con margen
-    if (state->width > screen_w - 20) {
-        state->width = screen_w - 20;
-        state->height = (int)(state->width / 3.2);
-    }
-
-    // Re-crear backbuffer
-    if (state->backbuffer) XFreePixmap(state->display, state->backbuffer);
-    XVisualInfo vinfo;
-    XMatchVisualInfo(state->display, DefaultScreen(state->display),
-                     32, TrueColor, &vinfo);
-    state->backbuffer = XCreatePixmap(state->display, state->window,
-                                      state->width, state->height, vinfo.depth);
-
-    XResizeWindow(state->display, state->window, state->width, state->height);
-    precompute_grid(state);
-    state->dirty = true;
+void ui_set_engine(UI *ui, Engine *engine) {
+    if (ui) ui->engine = engine;
 }
 
-// ── Inicialización ──
-
-void ui_init(UIState *state, Layout *layout) {
-    state->display = XOpenDisplay(NULL);
-    state->layout = layout;
-    state->current_layer = LAYER_NORMAL;
-    state->backbuffer = 0;
-
-    state->theme.win_radius = 16;
-    state->theme.key_radius = 6;
-    state->theme.win_opacity = 0.94;
-    state->theme.font_family = "Inter, Sans";
-    state->theme.show_titlebar = false;
-
-    Window root = DefaultRootWindow(state->display);
-    XVisualInfo vinfo;
-    XMatchVisualInfo(state->display, DefaultScreen(state->display),
-                     32, TrueColor, &vinfo);
-    state->visual = vinfo.visual;
-
-    XSetWindowAttributes attr;
-    attr.colormap = XCreateColormap(state->display, root,
-                                     state->visual, AllocNone);
-    attr.border_pixel = 0;
-    attr.background_pixel = 0;
-    attr.override_redirect = !state->theme.show_titlebar;
-    attr.backing_store = WhenMapped;
-
-    state->window = XCreateWindow(state->display, root,
-        100, 100, 100, 100, 0,
-        vinfo.depth, InputOutput, state->visual,
-        CWColormap | CWBorderPixel | CWBackPixel |
-        CWOverrideRedirect | CWBackingStore, &attr);
-
-    // Iniciar en tamaño Medium
-    ui_set_size(state, SIZE_M);
-
-    XSelectInput(state->display, state->window,
-        ExposureMask | ButtonPressMask | ButtonReleaseMask | Button1MotionMask);
-    XMapWindow(state->display, state->window);
-}
-
-// ── Renderizado ──
-
-static void render_to_backbuffer(UIState *state) {
-    cairo_surface_t *surf = cairo_xlib_surface_create(
-        state->display, state->backbuffer, state->visual,
-        state->width, state->height);
-    cairo_t *cr = cairo_create(surf);
-
-    // Limpiar a transparente para evitar artefactos en esquinas
-    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    cairo_set_source_rgba(cr, 0, 0, 0, 0);
-    cairo_paint(cr);
-
-    // Fondo de la ventana con bordes redondeados
-    cairo_set_source_rgba(cr, state->theme.bg_r, state->theme.bg_g, state->theme.bg_b, state->theme.win_opacity);
-    draw_rounded_rect(cr, 0, 0, state->width, state->height,
-                      state->theme.win_radius);
-    cairo_fill(cr);
-
-    // Configurar fuente
-    cairo_select_font_face(cr, state->theme.font_family,
-        CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-    cairo_set_font_size(cr, state->theme.font_size);
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-
-    // Dibujar cada tecla
-    for (int i = 0; i < state->num_rects; i++) {
-        KeyRect *kr = &state->rects[i];
-
-        // Color de fondo de la tecla
-        bool active = ((kr->flags & KEYFLAG_SHIFT) &&
-                       state->current_layer == LAYER_SHIFT) ||
-                      ((kr->flags & KEYFLAG_SYMBOLS) &&
-                       state->current_layer == LAYER_SYMBOLS);
-
-        if (active)
-            cairo_set_source_rgba(cr, state->theme.key3_r, state->theme.key3_g, state->theme.key3_b, 1.0);
-        else if (kr->flags & KEYFLAG_MODIFIER)
-            cairo_set_source_rgba(cr, state->theme.key2_r, state->theme.key2_g, state->theme.key2_b, 1.0);
-        else
-            cairo_set_source_rgba(cr, state->theme.key1_r, state->theme.key1_g, state->theme.key1_b, 1.0);
-
-        draw_rounded_rect(cr, kr->x, kr->y, kr->w, kr->h,
-                          state->theme.key_radius);
-        cairo_fill(cr);
-
-        // Contorno si aplica
-        if (state->theme.border_width > 0) {
-            cairo_set_source_rgb(cr, state->theme.border_r, state->theme.border_g, state->theme.border_b);
-            cairo_set_line_width(cr, state->theme.border_width);
-            draw_rounded_rect(cr, kr->x, kr->y, kr->w, kr->h, state->theme.key_radius);
-            cairo_stroke(cr);
-        }
-
-        // Etiqueta de la tecla
-        const char *label = get_key_label(kr->key,
-                                           state->current_layer, kr->flags);
-        cairo_set_source_rgb(cr, 0.95, 0.95, 0.95);
-        cairo_text_extents_t ext;
-        cairo_text_extents(cr, label, &ext);
-        cairo_move_to(cr,
-            kr->x + kr->w / 2.0 - ext.width / 2.0 - ext.x_bearing,
-            kr->y + kr->h / 2.0 - ext.height / 2.0 - ext.y_bearing);
-        cairo_show_text(cr, label);
-    }
-
-    // Renderizar menú si está abierto
-    if (state->menu_state != MENU_CLOSED) {
-        menu_render(state, cr);
-    }
-
-    cairo_destroy(cr);
-    cairo_surface_destroy(surf);
-    state->dirty = false;
-}
-
-// ── Bucle de eventos ──
-
-void ui_loop(UIState *state) {
-    XEvent ev;
-    int drag_x = 0, drag_y = 0;
-    bool dragging = false;
-
-    while (1) {
-        XNextEvent(state->display, &ev);
-
-        // Repintar al exponer
-        if (ev.type == Expose && ev.xexpose.count == 0) {
-            if (state->dirty) render_to_backbuffer(state);
-            GC gc = XCreateGC(state->display, state->window, 0, NULL);
-            XCopyArea(state->display, state->backbuffer, state->window, gc,
-                      0, 0, state->width, state->height, 0, 0);
-            XFreeGC(state->display, gc);
-        }
-
-        // Clic
-        if (ev.type == ButtonPress) {
-            // Botón derecho: ciclar tamaños
-            if (ev.xbutton.button == 3) {
-                ui_set_size(state, (state->current_size + 1) % 3);
+void ui_run(UI *ui) {
+    if (!ui) return;
+    
+    while (!ui->should_close) {
+        bool had_events = x11_window_wait_event(ui->window, 100);
+        
+        if (ui->dirty || keyboard_is_dirty(ui->keyboard) || had_events) {
+            renderer_begin_frame(ui->renderer);
+            renderer_clear(ui->renderer, (Color){0,0,0,CLEAR_ALPHA});
+            
+            int menu_offset = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
+            ui_render_draw_keyboard(ui->renderer, ui->keyboard, ui->key_bounds, ui->key_count,
+                                   ui->current_width, ui->current_height,
+                                   menu_offset, ui->opacity, ui->color_scheme_index);
+            
+            if (ui->menu_visible) {
+                ui_render_draw_menu_bar(ui->renderer, ui->current_width, ui->opacity, 
+                                       ui->current_width * FONT_SIZE_RATIO + 2);
             }
-            // Botón izquierdo: tecla o arrastre
-            else if (ev.xbutton.button == 1) {
-                int mx = ev.xbutton.x, my = ev.xbutton.y;
-
-                // Si el menú está abierto, delegar clics
-                if (state->menu_state != MENU_CLOSED) {
-                    if (menu_handle_click(state, mx, my)) {
-                        if (state->dirty) {
-                            render_to_backbuffer(state);
-                            XClearWindow(state->display, state->window);
-                        }
-                        continue;
-                    }
-                }
-
-                bool on_key = false;
-                for (int i = 0; i < state->num_rects; i++) {
-                    KeyRect *kr = &state->rects[i];
-                    if (mx >= kr->x && mx <= kr->x + kr->w &&
-                        my >= kr->y && my <= kr->y + kr->h) {
-                        on_key = true;
-
-                        // Tecla de tamaño
-                        if (strcmp(kr->key->label, "size") == 0) {
-                            ui_set_size(state,
-                                (state->current_size + 1) % 3);
-                        }
-                        // Shift
-                        else if (kr->flags & KEYFLAG_SHIFT) {
-                            state->current_layer =
-                                (state->current_layer == LAYER_SHIFT)
-                                ? LAYER_NORMAL : LAYER_SHIFT;
-                            state->dirty = true;
-                        }
-                        // Símbolos
-                        else if (kr->flags & KEYFLAG_SYMBOLS) {
-                            state->current_layer =
-                                (state->current_layer == LAYER_SYMBOLS)
-                                ? LAYER_NORMAL : LAYER_SYMBOLS;
-                            state->dirty = true;
-                        }
-                        // Tecla de menú
-                        else if (strcmp(kr->key->label, "menu") == 0) {
-                            state->menu_state = (state->menu_state == MENU_CLOSED) ? MENU_MAIN : MENU_CLOSED;
-                            state->dirty = true;
-                        }
-                        // Tecla normal
-                        else {
-                            KeySym ks;
-                            if (state->current_layer == LAYER_SHIFT)
-                                ks = kr->key->shifted;
-                            else if (state->current_layer == LAYER_SYMBOLS)
-                                ks = kr->key->altgr;
-                            else
-                                ks = kr->key->normal;
-                            if (ks != 0) {
-                                engine_send_key(ks, true);
-                                engine_send_key(ks, false);
-                            }
-                            if (state->current_layer == LAYER_SHIFT) {
-                                state->current_layer = LAYER_NORMAL;
-                                state->dirty = true;
-                            }
-                        }
-
-                        if (state->dirty) {
-                            render_to_backbuffer(state);
-                            XClearWindow(state->display, state->window);
-                        }
-                        break;
-                    }
-                }
-                if (!on_key) {
-                    dragging = true;
-                    drag_x = mx;
-                    drag_y = my;
-                }
-            }
+            
+            renderer_end_frame(ui->renderer);
+            renderer_present_to_window(ui->renderer);
+            
+            ui->dirty = false;
+            keyboard_mark_clean(ui->keyboard);
         }
-
-        // Soltar botón
-        if (ev.type == ButtonRelease && ev.xbutton.button == 1)
-            dragging = false;
-
-        // Arrastre de ventana
-        if (ev.type == MotionNotify && dragging)
-            XMoveWindow(state->display, state->window,
-                ev.xmotion.x_root - drag_x, ev.xmotion.y_root - drag_y);
     }
+}
+
+double ui_get_opacity(const UI *ui) { return ui ? ui->opacity : 0.0; }
+
+void ui_set_opacity(UI *ui, double opacity) {
+    if (!ui || opacity < MIN_OPACITY || opacity > MAX_OPACITY) return;
+    ui->opacity = opacity;
+    ui->dirty = true;
+    x11_window_set_opacity(ui->window, opacity);
+}
+
+int ui_get_color_scheme(const UI *ui) { return ui ? ui->color_scheme_index : 0; }
+
+void ui_set_color_scheme(UI *ui, int scheme_index) {
+    if (!ui || scheme_index < 0 || scheme_index >= NUM_COLOR_SCHEMES) return;
+    ui->color_scheme_index = scheme_index;
+    ui->dirty = true;
+}
+
+const char* ui_get_font_family(const UI *ui) {
+    return ui ? font_manager_get_current_family(ui->font_manager) : NULL;
+}
+
+bool ui_set_font_family(UI *ui, const char *family) {
+    if (!ui || !font_manager_set_family(ui->font_manager, family)) return false;
+    ui->dirty = true;
+    ui_calculate_layout(ui);
+    return true;
+}
+
+int ui_get_size_index(const UI *ui) { return ui ? ui->size_index : 1; }
+
+void ui_set_size_index(UI *ui, int size_index) {
+    if (!ui || size_index < 0 || size_index > 2) return;
+    ui->size_index = size_index;
+    ui_calculate_layout(ui);
+}
+
+void ui_show_menu(UI *ui) { if (ui) { ui->menu_visible = true; ui_calculate_layout(ui); } }
+void ui_hide_menu(UI *ui) { if (ui) { ui->menu_visible = false; ui_calculate_layout(ui); } }
+bool ui_is_menu_visible(const UI *ui) { return ui ? ui->menu_visible : false; }
+void ui_mark_dirty(UI *ui) { if (ui) ui->dirty = true; }
+bool ui_is_dirty(const UI *ui) { return ui ? ui->dirty : false; }
+
+void ui_destroy(UI *ui) {
+    if (!ui) return;
+    if (ui->key_bounds) free(ui->key_bounds);
+    free(ui);
 }

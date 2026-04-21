@@ -1,19 +1,30 @@
-#ifndef XVKBD_ENGINE_H
-#define XVKBD_ENGINE_H
+#ifndef ENGINE_H
+#define ENGINE_H
 
 #include <X11/Xlib.h>
-#include <X11/keysym.h>
 #include <stdbool.h>
 
+// Forward declaration
+typedef struct Engine Engine;
+
+// Configuration for keyboard event engine
 typedef struct {
-    Display *display;
-    bool use_xtest;
-    bool debug;
+    Display *display;     // NULL to open default display
+    bool use_xtest;       // Use XTest extension for synthetic events
+    int event_delay_ms;   // Delay between press/release (0 for immediate)
 } EngineConfig;
 
-int engine_init(EngineConfig *config);
-void engine_send_key(KeySym keysym, bool pressed);
-void engine_send_string(const char *str);
-void engine_close(void);
+// Create a new engine instance
+Engine* engine_create(EngineConfig *config);
 
-#endif
+// Send a key event (press or release)
+int engine_send_key(Engine *engine, KeySym keysym, bool pressed);
+int engine_send_key_ex(Engine *engine, KeySym keysym, bool pressed, int modifiers);
+
+// Flush pending events to server
+void engine_flush(Engine *engine);
+
+// Destroy engine and release resources
+void engine_destroy(Engine *engine);
+
+#endif // ENGINE_H

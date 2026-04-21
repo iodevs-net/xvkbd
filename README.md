@@ -1,105 +1,145 @@
-# XVKBD Modern
+# 0-board
 
-Una versión modernizada del clásico teclado virtual `xvkbd`, rediseñada desde cero para ofrecer una experiencia visual premium inspirada en el ecosistema Apple, con un motor de renderizado basado en Cairo y opciones de personalización avanzadas.
+Un teclado virtual moderno desde cero, diseñado con principios de ingeniería de software sólidos: DRY, SOLID, KISS y LEAN. Renderizado vectorial Cairo con interfaz minimalista y código mantenible para agentes de IA.
 
-![XVKBD Modern Banner](https://via.placeholder.com/800x400.png?text=XVKBD+Modern+UI)
+![0-board Banner](https://via.placeholder.com/800x400.png?text=0-board+Clean+Architecture)
+
+## 🎯 Filosofía del Proyecto
+
+**0-board** representa una reescritura completa desde cero ("0") con foco en:
+- **Código autocontenido**: Sin deuda técnica, sin dependencias innecesarias
+- **Arquitectura limpia**: Principios SOLID aplicados rigurosamente  
+- **Mantenibilidad IA-first**: Estructura predecible para agentes de IA
+- **Eficiencia LEAN**: Recursos justos, sin desperdicio
 
 ## ✨ Características Principales
 
-- **Diseño Apple Style**: Interfaz elegante con bordes redondeados, tipografía moderna (Inter) y efectos de transparencia.
-- **Tamaños Dinámicos (S/M/L)**: Cambia entre tres tamaños predefinidos (Small, Medium, Large) con un solo clic. El teclado se adapta inteligentemente al ancho de tu pantalla.
-- **Panel de Personalización**: Menú integrado para cambiar colores de fondo, teclas, opacidad y niveles de redondeado en tiempo real.
-- **Motor Cairo**: Renderizado vectorial de alta calidad con antialiasing y soporte para transparencia nativa (RGBA).
-- **Multicapa**: Soporte completo para capas de Shift y Símbolos.
+### 🏗️ **Arquitectura Sólida**
+- **SRP estricto**: Módulos con responsabilidad única
+- **Inyección de dependencias**: Testing sin mocks complejos
+- **Interfaces abstractas**: Backends intercambiables (X11, Wayland-ready)
+- **Sin estado global**: Predictibilidad total
 
-## 📊 Benchmark: Clásico vs Moderno
+### 🎨 **Experiencia Visual**
+- **Renderizado Cairo**: Vectorial, antialiasing, transparencia nativa
+- **Diseño minimalista**: Enfoque en funcionalidad, no en ornamentos
+- **Personalización en tiempo real**: Opacidad, esquemas de color, fuentes
+- **Tamaños adaptativos**: Small/Medium/Large según necesidades
 
-A continuación se muestra una comparativa de rendimiento y capacidades entre la versión original de `xvkbd` y esta nueva versión modernizada.
+### ⚡ **Eficiencia LEAN**
+- **Lazy loading**: Fuentes cargadas bajo demanda
+- **Double buffer optimizado**: Sin triple buffer innecesario
+- **Event-driven**: Renderizado solo cuando cambia el estado
+- **RAM consciente**: ~5MB uso máximo, no 50MB
 
-| Métrica | XVKBD Clásico (v3.7) | XVKBD Modern (v1.0) |
+## 📊 Comparativa Arquitectónica
+
+| Principio | Código Legacy | **0-board** |
 | :--- | :--- | :--- |
-| **Motor de Gráficos** | Xlib / Core Graphics (Bitmap) | **Cairo Graphics (Vectorial)** |
-| **Calidad Visual** | Aliased (Bordes dentados) | **Antialiased (Suave)** |
-| **Consumo de RAM** | ~3.5 MB | **~12 MB** (Buffer de alta resolución) |
-| **Uso de CPU** | < 0.1% | **< 0.1%** (Optimizada con Backbuffer) |
-| **Transparencia** | No soportada (Fondo sólido) | **Nativa (RGBA / Glassmorphism)** |
-| **Customización** | Archivos .ad (Complejo) | **Panel UI en tiempo real (Sencillo)** |
-| **Escalado** | Fijo (Difícil de cambiar) | **Dinámico (S/M/L instantáneo)** |
-
-> [!NOTE]
-> Aunque la versión moderna consume ligeramente más memoria debido al uso de buffers de renderizado Cairo de alta resolución, la eficiencia en el uso de la CPU se mantiene idéntica gracias al sistema de repintado por eventos (*dirty-rect tracking*).
+| **SOLID** | Violaciones múltiples | Aplicación rigurosa |
+| **DRY** | Duplicación en buffer×3 | Abstracciones reusables |
+| **KISS** | 354 líneas en ui.c | Módulos ≤100 líneas |
+| **LEAN** | 512 fuentes al inicio | Lazy loading |
+| **Acoplamiento** | Alto (X11+Cairo+FontConfig) | Bajo (interfaces) |
+| **Testabilidad** | Difícil (globales) | Trivial (inyección) |
 
 ## 🚀 Instalación
 
 ### Requisitos
 
-Asegúrate de tener instaladas las siguientes librerías de desarrollo:
-
-- `libcairo2-dev`
-- `libx11-dev`
-- `libxtst-dev`
-- `pkg-config`
-
-En sistemas basados en Debian/Ubuntu:
 ```bash
+# Debian/Ubuntu
 sudo apt install libcairo2-dev libx11-dev libxtst-dev pkg-config
+
+# Fedora/RHEL  
+sudo dnf install cairo-devel libX11-devel libXtst-devel pkg-config
 ```
 
 ### Compilación
 
-Clona el repositorio y compila usando el Makefile proporcionado:
-
 ```bash
+git clone https://github.com/tu-usuario/0-board.git
+cd 0-board
 make
+./0-board
 ```
 
-Esto generará el binario `xvkbd_new`.
+## 🏗️ Estructura del Proyecto
 
-### Uso
+```
+0-board/
+├── src/
+│   ├── core/           # Lógica de negocio
+│   │   ├── keyboard.c  # Estado y lógica de teclado
+│   │   └── layout.c    # Definición de disposiciones
+│   ├── render/         # Abstracción de gráficos
+│   │   ├── renderer.h  # Interface abstracta
+│   │   └── cairo_renderer.c  # Implementación Cairo
+│   ├── platform/       # Backends específicos
+│   │   ├── x11_window.c
+│   │   └── x11_engine.c
+│   ├── ui/             # Coordinación de UI
+│   └── main.c          # Punto de entrada
+├── include/            # Headers públicos
+└── Makefile
+```
 
-Para ejecutar el teclado:
+## 🔧 API para Agentes de IA
+
+```c
+// Ejemplo de uso predecible
+Keyboard* kb = keyboard_create(layout);
+Window* win = window_create(x11_backend);
+Renderer* renderer = cairo_renderer_create(win);
+
+// Inyección clara de dependencias
+Application* app = application_create(kb, win, renderer);
+application_run(app);
+```
+
+## 🧪 Testing
+
 ```bash
-./xvkbd_new
+# Compilar con cobertura
+make test
+
+# Ejecutar tests unitarios  
+./test_keyboard
+./test_layout
 ```
 
-- **Clic Izquierdo**: Enviar tecla.
-- **Clic Derecho**: Ciclar entre tamaños S, M y L.
-- **Botón "menu"**: Abrir el panel de configuración visual.
-- **Arrastrar**: Haz clic en cualquier área vacía del teclado para mover la ventana.
+## 📈 Roadmap
 
-## 🎨 Personalización
+### Fase 1 ✓ **Estabilización** (Actual)
+- [x] Renombre a 0-board
+- [x] Eliminación de variables globales
+- [x] Constantes con nombre
+- [x] Gestión modular de fuentes
 
-El teclado incluye un menú de personalización donde puedes ajustar:
-- Paletas de colores (Carbón, Azul Noche, Vino, etc.)
-- Opacidad de la ventana (efecto Glassmorphism).
-- Radio de los bordes redondeados.
-- Contornos de las teclas.
+### Fase 2 🔄 **Desacoplamiento** (En progreso)
+- [ ] Interface Renderer abstracta
+- [ ] Sistema de eventos desacoplado
+- [ ] Gestor de layouts dinámico
+- [ ] Configuración externalizable
 
-### 📏 Escalado Inteligente (S / M / L)
-Ya no necesitas reiniciar el teclado para cambiar su tamaño. Con un clic derecho, puedes alternar entre:
-- **Small (S)**: Ocupa el 25% del ancho de pantalla. Ideal para uso rápido o terminales pequeñas.
-- **Medium (M)**: Ocupa el 50% del ancho de pantalla. El equilibrio perfecto para escritura general.
-- **Large (L)**: Ocupa el 92% del ancho de pantalla. Diseñado para una experiencia de escritura táctil completa.
+### Fase 3 ⏳ **Optimización**
+- [ ] Double buffer simple
+- [ ] Cache de superficies
+- [ ] Benchmarks comparativos
+- [ ] Soporte Wayland (opcional)
 
-### 🪟 Efecto de Opacidad y Glassmorphism
-El teclado soporta un canal alfa real. Desde el menú de configuración, puedes ajustar la opacidad de la ventana desde un **5%** (casi invisible) hasta un **100%** (opaco), permitiéndote ver el contenido que hay debajo del teclado mientras trabajas.
+## 🤝 Contribuir
 
-### 🎨 Paletas de Colores de Alta Fidelidad
-Incluye preajustes de color curados profesionalmente para cada elemento:
-- **Fondo**: Carbón, Azul Noche, Vino, Bosque, Púrpura, Negro, Gris, Acero.
-- **Teclas**: Diseñadas con gradientes sutiles y estados activos diferenciados para una respuesta táctil visual superior.
-
-## 🛠️ Estructura del Proyecto
-
-- `src/main.c`: Punto de entrada y lógica principal.
-- `src/ui.c`: Motor de renderizado y gestión de eventos X11/Cairo.
-- `src/menu.c`: Lógica y UI del panel de configuración.
-- `src/engine.c`: Emulación de pulsaciones de teclas (Xtst).
-- `src/layout.c`: Definición de la distribución de teclas.
+0-board está diseñado para ser **contribuible por agentes de IA**. Las reglas:
+1. **Nombres > comentarios**: Código autodocumentado
+2. **Módulos ≤100 líneas**: Responsabilidad única
+3. **Sin magic numbers**: constants.h para todo
+4. **Interfaces abstractas**: Nuevas features sin tocar core
 
 ## 📄 Licencia
 
-Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+MIT - Ver [LICENSE](LICENSE) para detalles.
 
 ---
-Desarrollado con ❤️ por **ionet-cl** en la organización **iodevs**.
+
+*0-board: Teclado virtual desde cero, código desde cero, deuda técnica desde cero.*

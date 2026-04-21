@@ -1,17 +1,24 @@
-#ifndef XVKBD_LAYOUT_H
-#define XVKBD_LAYOUT_H
+#ifndef LAYOUT_H
+#define LAYOUT_H
 
 #include <X11/Xlib.h>
-#include <X11/keysym.h>
 #include <stdbool.h>
+#include "constants.h"
+
+#define KEYFLAG_NORMAL   0
+#define KEYFLAG_SHIFT    1
+#define KEYFLAG_SYMBOLS  2
+#define KEYFLAG_MODIFIER 4
 
 typedef struct {
     KeySym normal;
     KeySym shifted;
     KeySym altgr;
     const char *label;
+    const char *shifted_label; // NULL if same or auto-uppercase
     bool new_row;
     int width_weight;
+    int flags;
 } KeyDef;
 
 typedef struct {
@@ -21,5 +28,6 @@ typedef struct {
 } Layout;
 
 Layout* layout_get_default();
+void layout_init(Layout *l);
 
 #endif

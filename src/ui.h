@@ -1,74 +1,75 @@
-// ui.h - Soporte para menú de personalización visual
-#ifndef XVKBD_UI_H
-#define XVKBD_UI_H
+#ifndef UI_H
+#define UI_H
 
-#include <X11/Xlib.h>
 #include <stdbool.h>
-#include "layout.h"
 
-typedef enum { SIZE_S, SIZE_M, SIZE_L } UISize;
-typedef enum { LAYER_NORMAL, LAYER_SHIFT, LAYER_SYMBOLS } KeyboardLayer;
-typedef enum { MENU_CLOSED, MENU_MAIN, MENU_VISUAL } MenuState;
+// Forward declarations
+typedef struct UI UI;
+typedef struct Keyboard Keyboard;
+typedef struct Renderer Renderer;
+typedef struct X11Window X11Window;
+typedef struct FontManager FontManager;
+typedef struct Engine Engine;
 
-// ── Tema visual completo ──
+// UI configuration
 typedef struct {
-    double win_radius;       // empalme teclado (base, se escala)
-    double key_radius;       // empalme teclas (base, se escala)
-    double win_opacity;      // opacidad 5-100%
-    double bg_r, bg_g, bg_b;           // fondo ventana
-    double key1_r, key1_g, key1_b;     // teclas normales
-    double key2_r, key2_g, key2_b;     // teclas modificadoras
-    double key3_r, key3_g, key3_b;     // teclas activas
-    double border_r, border_g, border_b; // contorno teclas
-    double border_width;
-    const char *font_family;
-    int font_size;
-    bool show_titlebar;
-    // Valores escalados (internos)
-    double s_win_r, s_key_r;
-} Theme;
+    const char *title;
+    double initial_opacity;
+    bool show_menu_bar;
+    int initial_size; // 0=small, 1=medium, 2=large
+} UIConfig;
 
-#define KEYFLAG_NORMAL   0
-#define KEYFLAG_SHIFT    1
-#define KEYFLAG_SYMBOLS  2
-#define KEYFLAG_MODIFIER 4
+// Create UI instance
+UI* ui_create(UIConfig *config, Keyboard *keyboard, 
+              Renderer *renderer, X11Window *window,
+              FontManager *font_manager);
 
-typedef struct {
-    int x, y, w, h;
-    KeyDef *key;
-    int flags;
-} KeyRect;
+// Set the input engine
+void ui_set_engine(UI *ui, Engine *engine);
 
-typedef struct { int start, count, weight; } RowInfo;
+// Run the UI main loop
+void ui_run(UI *ui);
 
-// Zona clicable del menú
-#define MAX_MENU_HITS 40
-typedef struct { int x, y, w, h, id; } MenuHit;
+// Get current opacity
+double ui_get_opacity(const UI *ui);
 
-typedef struct {
-    Display *display;
-    Window window;
-    Visual *visual;
-    int width, height;
-    Theme theme;
-    Layout *layout;
-    KeyRect rects[128];
-    int num_rects;
-    RowInfo rows[10];
-    int num_rows;
-    KeyboardLayer current_layer;
-    UISize current_size;
-    Pixmap backbuffer;
-    bool dirty;
-    // Menú
-    MenuState menu_state;
-    int color_idx[5]; // bg, key1, key2, key3, border
-    MenuHit menu_hits[MAX_MENU_HITS];
-    int num_menu_hits;
-} UIState;
+// Set opacity (0.0 to 1.0)
+void ui_set_opacity(UI *ui, double opacity);
 
-void ui_init(UIState *state, Layout *layout);
-void ui_loop(UIState *state);
-void ui_set_size(UIState *state, UISize size);
+// Get current color scheme index
+int ui_get_color_scheme(const UI *ui);
 
-#endif
+// Set color scheme by index
+void ui_set_color_scheme(UI *ui, int scheme_index);
+
+// Get current font family
+const char* ui_get_font_family(const UI *ui);
+
+// Set font family
+bool ui_set_font_family(UI *ui, const char *family);
+
+// Get current size index (0=small, 1=medium, 2=large)
+int ui_get_size_index(const UI *ui);
+
+// Set size by index
+void ui_set_size_index(UI *ui, int size_index);
+
+// Show menu bar
+void ui_show_menu(UI *ui);
+
+// Hide menu bar  
+void ui_hide_menu(UI *ui);
+
+// Check if menu is visible
+bool ui_is_menu_visible(const UI *ui);
+
+// Mark UI as needing redraw
+void ui_mark_dirty(UI *ui);
+
+// Check if UI needs redraw
+bool ui_is_dirty(const UI *ui);
+
+// Destroy UI
+void ui_destroy(UI *ui);
+
+#endif // UI_H
