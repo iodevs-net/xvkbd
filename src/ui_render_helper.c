@@ -13,6 +13,21 @@ static Color color_with_opacity(Color c, double opacity) {
     return (Color){c.red, c.green, c.blue, c.alpha * opacity};
 }
 
+/**
+ * ui_render_draw_keyboard: The core rendering logic.
+ * 
+ * STRATEGY (Dual-Pass / Zero-Resource):
+ * 1. Static Pass (draw_dynamic = false):
+ *    Renders keys in their normal state. This is called once per layout/layer change
+ *    to populate a background cache (Pixmaps). 
+ * 
+ * 2. Dynamic Pass (draw_dynamic = true):
+ *    Renders ONLY the keys that are currently pressed or active (Modifiers).
+ *    This overlay is drawn every frame (30fps) on top of the static cache.
+ * 
+ * This separation allows us to use expensive BitBlt operations for the bulk
+ * of the UI, while keeping high responsiveness for interactions.
+ */
 void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
                             Rectangle *key_bounds, KeyVisualMetadata *key_metadata,
                             int key_count, int win_width, int win_height,

@@ -10,6 +10,12 @@
 // Minimum interval between frames (ms). 30fps max = ~33ms
 #define MIN_FRAME_INTERVAL_MS 33
 
+/**
+ * ui_calculate_layout: Computes the internal geometry of all keys.
+ * This function is 'pure' regarding the window: it only updates internal bounds
+ * and metadata without moving or resizing the actual X11 window.
+ * This is critical to avoid "double-move" flicker during atomic updates.
+ */
 void ui_calculate_layout(UI *ui) {
     if (!ui || !ui->keyboard) return;
 
@@ -17,6 +23,7 @@ void ui_calculate_layout(UI *ui) {
     Display *dpy = x11_window_get_display(ui->window);
     int screen_w = DisplayWidth(dpy, DefaultScreen(dpy));
 
+    // Calculate keyboard dimensions based on current size index (Small/Med/Large)
     double ratios[] = {SCREEN_WIDTH_RATIO_SMALL, SCREEN_WIDTH_RATIO_MEDIUM, SCREEN_WIDTH_RATIO_LARGE};
     int kb_width = screen_w * ratios[ui->size_index];
     int kb_height = kb_width * KEYBOARD_HEIGHT_RATIO;
@@ -25,6 +32,7 @@ void ui_calculate_layout(UI *ui) {
     ui->current_width = kb_width;
     ui->current_height = kb_height + menu_offset;
 
+    // Refresh memory for key bounds
     if (ui->key_bounds) free(ui->key_bounds);
     if (ui->key_metadata) free(ui->key_metadata);
     
@@ -32,10 +40,11 @@ void ui_calculate_layout(UI *ui) {
     ui->key_bounds = malloc(sizeof(Rectangle) * ui->key_count);
     ui->key_metadata = malloc(sizeof(KeyVisualMetadata) * ui->key_count);
 
+    // Run the layout engine to compute relative positions
     layout_engine_calculate(layout, ui->current_width, ui->current_height,
                            menu_offset, ui->key_bounds);
 
-    // Pre-calculate visual metadata
+    // Pre-calculate visual metadata (font sizes, styles) to speed up rendering
     double base_font_size = ui->current_width * FONT_SIZE_RATIO + 2;
     for (int i = 0; i < ui->key_count; i++) {
         KeyDef *key = &layout->keys[i];
@@ -45,6 +54,7 @@ void ui_calculate_layout(UI *ui) {
         m->is_special = (key->normal == XK_BackSpace || key->normal == XK_Return || key->normal == XK_space);
         
         const char *label = key->label;
+        // Identify non-ASCII symbols for specialized rendering (icons/unicode)
         m->is_symbol = (label && (unsigned char)label[0] >= 0xC0 && strlen(label) <= 4);
         
         if (m->is_symbol) {
@@ -59,12 +69,16 @@ void ui_calculate_layout(UI *ui) {
         }
     }
 
-
-
+    // Mark background as dirty to force a cache refresh on next frame
     ui->bg_dirty = true;
     ui->dirty = true;
 }
 
+/**
+ * ui_apply_geometry: Applies both position and size to the X11 window atomically.
+ * This prevents the "jumpy" behavior when resizing near screen edges, as the 
+ * Window Manager receives a single XMoveResizeWindow request.
+ */
 void ui_apply_geometry(UI *ui, int x, int y) {
     if (!ui) return;
     x11_window_move_resize(ui->window, x, y, ui->current_width, ui->current_height);

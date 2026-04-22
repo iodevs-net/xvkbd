@@ -78,24 +78,32 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
                     if (sym == XK_Super_R) {
                         // Capture anchor point (center of the size key) to keep pointer over it
                         int wx, wy;
+                        // ATOMIC RESIZE ANCHORING:
+                        // 1. Capture the current world position of the key being clicked.
+                        // This center-point (anchor_x, anchor_y) is where the user's 
+                        // finger/pointer is fixed.
                         x11_window_get_position(ui->window, &wx, &wy);
                         Rectangle old_k = ui->key_bounds[i];
                         
-                        // Atomic anchor calculation (relative to screen)
                         double anchor_x = wx + old_k.x + old_k.width / 2.0;
                         double anchor_y = wy + old_k.y + old_k.height / 2.0;
 
+                        // 2. Change the logical size. ui_set_size_index now only
+                        // calculates the NEW internal layout without moving the window.
                         int next_size = (ui->size_index + 1) % 3;
-                        ui_set_size_index(ui, next_size); // Only calculates layout now
+                        ui_set_size_index(ui, next_size);
 
-                        // Calculate new window position based on anchor
+                        // 3. Re-calculate window coordinates so the NEW key center 
+                        // aligns exactly with the OLD screen anchor.
                         Rectangle new_k = ui->key_bounds[i];
                         int new_wx = (int)(anchor_x - (new_k.x + new_k.width / 2.0));
                         int new_wy = (int)(anchor_y - (new_k.y + new_k.height / 2.0));
                         
+                        // Enforce docking rules (e.g., Y=0 if docked top)
                         if (ui->docked_top) new_wy = 0;
                         
-                        // Apply BOTH size and position in ONE atomic X11 call
+                        // 4. APPLY ATOMICALLY. x11_window_move_resize uses XMoveResizeWindow
+                        // to ensure no intermediate flicker or WM corrections.
                         ui_apply_geometry(ui, new_wx, new_wy);
                     } else {
                         keyboard_press_key(ui->keyboard, i);
