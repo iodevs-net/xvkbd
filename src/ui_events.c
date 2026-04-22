@@ -5,6 +5,7 @@
 #include "debug.h"
 #include <X11/keysym.h>
 #include <string.h>
+#include <unistd.h>
 
 void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) {
     if (!ui) return;
@@ -69,8 +70,7 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
                 else ui_show_menu(ui);
             } else if (ui->engine) {
                 KeySym sym = keyboard_get_keysym(ui->keyboard, i);
-                int effective_layer = keyboard_get_effective_layer(ui->keyboard, i);
-
+                
                 if (sym != 0) {
                     // Right Command (⌘) toggles keyboard size
                     if (sym == XK_Super_R) {
@@ -78,12 +78,13 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
                         ui_set_size_index(ui, next_size);
                     } else {
                         keyboard_press_key(ui->keyboard, i);
-
-                        int modifiers = (effective_layer == 1) ? 1 : 0;
-                        engine_send_key_ex(ui->engine, sym, true, modifiers);
-                        engine_send_key_ex(ui->engine, sym, false, modifiers);
+                        
+                        // Send the key via the engine
+                        engine_send_key(ui->engine, sym, true);
+                        usleep(10000); // 10ms delay for stability
+                        engine_send_key(ui->engine, sym, false);
                         engine_flush(ui->engine);
-
+                        
                         keyboard_notify_key_sent(ui->keyboard, i);
                     }
                 }

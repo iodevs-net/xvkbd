@@ -248,20 +248,53 @@ void cairo_renderer_update_surface(Renderer *renderer, void *new_surface, int wi
 
 void renderer_destroy(Renderer *renderer) {
     if (!renderer) return;
-    
-    if (renderer->cr) {
-        cairo_destroy(renderer->cr);
-    }
-    
-    if (renderer->owns_surface && renderer->surface) {
-        cairo_surface_destroy(renderer->surface);
-    }
-    
-    if (renderer->user_data_free && renderer->user_data) {
+    if (renderer->user_data && renderer->user_data_free) {
         renderer->user_data_free(renderer->user_data);
     }
-    
+    cairo_destroy(renderer->cr);
+    if (renderer->owns_surface) {
+        cairo_surface_destroy(renderer->surface);
+    }
     free(renderer);
+}
+
+struct RendererSurface {
+    cairo_surface_t *surface;
+};
+
+RendererSurface* renderer_create_surface(Renderer *renderer, int width, int height) {
+    if (!renderer) return NULL;
+    RendererSurface *rs = malloc(sizeof(RendererSurface));
+    rs->surface = cairo_surface_create_similar(renderer->surface, CAIRO_CONTENT_COLOR_ALPHA, width, height);
+    return rs;
+}
+
+void renderer_draw_to_surface(Renderer *renderer, RendererSurface *surface, void (*draw_func)(Renderer*, void*), void *user_data) {
+    if (!renderer || !surface) return;
+    cairo_surface_t *old_surface = renderer->surface;
+    cairo_t *old_cr = renderer->cr;
+    
+    renderer->surface = surface->surface;
+    renderer->cr = cairo_create(renderer->surface);
+    
+    draw_func(renderer, user_data);
+    
+    cairo_destroy(renderer->cr);
+    renderer->surface = old_surface;
+    renderer->cr = old_cr;
+}
+
+void renderer_draw_surface(Renderer *renderer, RendererSurface *surface, double x, double y, double opacity) {
+    if (!renderer || !surface) return;
+    cairo_set_source_surface(renderer->cr, surface->surface, x, y);
+    if (opacity >= 1.0) cairo_paint(renderer->cr);
+    else cairo_paint_with_alpha(renderer->cr, opacity);
+}
+
+void renderer_destroy_surface(RendererSurface *surface) {
+    if (!surface) return;
+    cairo_surface_destroy(surface->surface);
+    free(surface);
 }
 
 void renderer_set_user_data(Renderer *renderer, void *user_data) {

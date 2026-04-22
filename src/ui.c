@@ -1,4 +1,5 @@
 #include "ui_internal.h"
+#include <X11/keysym.h>
 #include "ui_events.h"
 #include "ui_render_helper.h"
 #include "layout_engine.h"
@@ -27,11 +28,38 @@ void ui_calculate_layout(UI *ui) {
     ui->current_height = kb_height + menu_offset;
 
     if (ui->key_bounds) free(ui->key_bounds);
+    if (ui->key_metadata) free(ui->key_metadata);
+    
     ui->key_count = layout->num_keys;
     ui->key_bounds = malloc(sizeof(Rectangle) * ui->key_count);
+    ui->key_metadata = malloc(sizeof(KeyVisualMetadata) * ui->key_count);
 
     layout_engine_calculate(layout, ui->current_width, ui->current_height,
                            menu_offset, ui->key_bounds);
+
+    // Pre-calculate visual metadata
+    double base_font_size = ui->current_width * FONT_SIZE_RATIO + 2;
+    for (int i = 0; i < ui->key_count; i++) {
+        KeyDef *key = &layout->keys[i];
+        KeyVisualMetadata *m = &ui->key_metadata[i];
+        
+        m->is_modifier = (key->flags & KEYFLAG_MODIFIER);
+        m->is_special = (key->normal == XK_BackSpace || key->normal == XK_Return || key->normal == XK_space);
+        
+        const char *label = key->label;
+        m->is_symbol = (label && (unsigned char)label[0] >= 0xC0 && strlen(label) <= 4);
+        
+        if (m->is_symbol) {
+            m->font_size = base_font_size * LABEL_SCALE_SYMBOL;
+            m->bold = false;
+        } else if (m->is_modifier && label && strlen(label) > 1) {
+            m->font_size = base_font_size * LABEL_SCALE_MODIFIER;
+            m->bold = false;
+        } else {
+            m->font_size = base_font_size * LABEL_SCALE_LETTER;
+            m->bold = true;
+        }
+    }
 
     // If already initialized, adjust Y to keep bottom anchored if height changed
     if (old_height > 0 && old_height != ui->current_height) {
@@ -43,6 +71,7 @@ void ui_calculate_layout(UI *ui) {
     x11_window_resize(ui->window, ui->current_width, ui->current_height);
     renderer_resize(ui->renderer, ui->current_width, ui->current_height);
 
+    ui->bg_dirty = true;
     ui->dirty = true;
 }
 
@@ -89,18 +118,52 @@ void ui_set_engine(UI *ui, Engine *engine) {
     if (ui) ui->engine = engine;
 }
 
+static void ui_render_static_bg_callback(Renderer *renderer, void *user_data) {
+    UI *ui = (UI*)user_data;
+    renderer_clear(renderer, (Color){0,0,0,0});
+    int menu_offset = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
+    const char *current_font = font_manager_get_current_family(ui->font_manager);
+
+    ui_render_draw_keyboard(renderer, ui->keyboard,
+        ui->key_bounds, ui->key_metadata, ui->key_count,
+        ui->current_width, ui->current_height,
+        menu_offset, 1.0, ui->color_scheme_index,
+        current_font, false); // draw_dynamic = false
+}
+
+static void ui_update_bg_cache(UI *ui) {
+    if (ui->bg_cache) renderer_destroy_surface(ui->bg_cache);
+    ui->bg_cache = renderer_create_surface(ui->renderer, ui->current_width, ui->current_height);
+    renderer_draw_to_surface(ui->renderer, ui->bg_cache, ui_render_static_bg_callback, ui);
+    ui->bg_dirty = false;
+}
+
 static void ui_render_frame(UI *ui) {
+    KeyboardState kb_state = keyboard_get_state(ui->keyboard);
+    bool layer_changed = ((int)kb_state.current_layer != ui->last_rendered_layer) || 
+                         (kb_state.caps_lock != ui->last_rendered_caps);
+
+    if (ui->bg_dirty || layer_changed || !ui->bg_cache) {
+        ui->last_rendered_layer = kb_state.current_layer;
+        ui->last_rendered_caps = kb_state.caps_lock;
+        ui_update_bg_cache(ui);
+    }
+
     renderer_begin_frame(ui->renderer);
     renderer_clear(ui->renderer, (Color){0,0,0,CLEAR_ALPHA});
 
+    // 1. Draw cached background
+    renderer_draw_surface(ui->renderer, ui->bg_cache, 0, 0, ui->opacity);
+
+    // 2. Draw dynamic overlay (pressed keys, active modifiers)
     int menu_offset = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
     const char *current_font = font_manager_get_current_family(ui->font_manager);
 
     ui_render_draw_keyboard(ui->renderer, ui->keyboard,
-        ui->key_bounds, ui->key_count,
+        ui->key_bounds, ui->key_metadata, ui->key_count,
         ui->current_width, ui->current_height,
         menu_offset, ui->opacity, ui->color_scheme_index,
-        current_font);
+        current_font, true); // draw_dynamic = true
 
     ui_render_draw_drag_handle(ui->renderer, ui->current_width,
         ui->color_scheme_index, ui->opacity);
@@ -169,8 +232,9 @@ void ui_set_opacity(UI *ui, double opacity) {
 int ui_get_color_scheme(const UI *ui) { return ui ? ui->color_scheme_index : 0; }
 
 void ui_set_color_scheme(UI *ui, int scheme_index) {
-    if (!ui || scheme_index < 0 || scheme_index >= NUM_COLOR_SCHEMES) return;
+    if (!ui) return;
     ui->color_scheme_index = scheme_index;
+    ui->bg_dirty = true;
     ui->dirty = true;
 }
 
@@ -202,5 +266,7 @@ bool ui_is_dirty(const UI *ui) { return ui ? ui->dirty : false; }
 void ui_destroy(UI *ui) {
     if (!ui) return;
     if (ui->key_bounds) free(ui->key_bounds);
+    if (ui->key_metadata) free(ui->key_metadata);
+    if (ui->bg_cache) renderer_destroy_surface(ui->bg_cache);
     free(ui);
 }

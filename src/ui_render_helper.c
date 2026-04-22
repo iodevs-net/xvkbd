@@ -7,70 +7,69 @@
 #include <string.h>
 
 // Determine if a key label is a single unicode symbol (modifier icons)
-static bool is_symbol_label(const char *label) {
-    if (!label || label[0] == '\0') return false;
-    // UTF-8 multi-byte sequences start with 0xC0+ byte
-    return ((unsigned char)label[0] >= 0xC0 && strlen(label) <= 4);
-}
+
 
 static Color color_with_opacity(Color c, double opacity) {
     return (Color){c.red, c.green, c.blue, c.alpha * opacity};
 }
 
 void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
-                            Rectangle *key_bounds, int key_count,
-                            int win_width, int win_height,
+                            Rectangle *key_bounds, KeyVisualMetadata *key_metadata,
+                            int key_count, int win_width, int win_height,
                             int menu_offset, double opacity,
                             int color_scheme_index,
-                            const char *font_family) {
-    if (!renderer || !keyboard) return;
+                            const char *font_family,
+                            bool draw_dynamic) {
+    if (!renderer || !keyboard || !key_bounds || !key_metadata) return;
 
     ColorScheme scheme = color_scheme_get(color_scheme_index);
-    double base_font_size = win_width * FONT_SIZE_RATIO + 2;
-
-    // 1. Background
-    Rectangle bg = {0, menu_offset, win_width, win_height - menu_offset};
-    renderer_draw_rectangle(renderer, bg,
-        color_with_opacity(scheme.background, opacity), KEYBOARD_CORNER_RADIUS);
-
-    if (!key_bounds || key_count <= 0) return;
-
     Layout *layout = keyboard_get_layout(keyboard);
     KeyboardState state = keyboard_get_state(keyboard);
 
+    // 1. Background (Only if not drawing dynamic overlay)
+    if (!draw_dynamic) {
+        Rectangle bg = {0, menu_offset, win_width, win_height - menu_offset};
+        renderer_draw_rectangle(renderer, bg,
+            color_with_opacity(scheme.background, opacity), KEYBOARD_CORNER_RADIUS);
+    }
+
     for (int i = 0; i < key_count && i < layout->num_keys; i++) {
         KeyDef *key = &layout->keys[i];
+        KeyVisualMetadata *meta = &key_metadata[i];
         Rectangle kb = key_bounds[i];
 
-        // --- Key color selection ---
-        Color key_color;
-        bool is_modifier = (key->flags & KEYFLAG_MODIFIER);
+        // Modifier and pressed states are only relevant for the dynamic pass
+        bool is_active_modifier = false;
+        bool is_pressed = false;
 
-        if (is_modifier)
+        if (draw_dynamic) {
+            if (key->flags & KEYFLAG_SHIFT)
+                is_active_modifier = (state.current_layer == KEYBOARD_LAYER_SHIFT);
+            else if (key->normal == XK_Caps_Lock)
+                is_active_modifier = state.caps_lock;
+            
+            is_pressed = (state.pressed_key_index == i);
+        }
+        
+        // Filtering: 
+        // - Background pass (draw_dynamic=false): Draw EVERY key in its current label/state.
+        // - Dynamic pass (draw_dynamic=true): Only draw keys that need a highlight (pressed or active modifier).
+        if (draw_dynamic && !(is_pressed || is_active_modifier)) continue;
+
+        // --- Key color selection (Using Metadata) ---
+        Color key_color;
+        if (meta->is_special)
+            key_color = scheme.key_special;
+        else if (meta->is_modifier)
             key_color = scheme.key_modifier;
         else
             key_color = scheme.key_normal;
 
-        // Special keys: backspace, return, space
-        if (key->normal == XK_BackSpace || key->normal == XK_Return ||
-            key->normal == XK_space)
-            key_color = scheme.key_special;
-
-        // Active modifier highlight
-        bool is_active_modifier = false;
-        if (key->flags & KEYFLAG_SHIFT)
-            is_active_modifier = (state.current_layer == KEYBOARD_LAYER_SHIFT);
-        else if (key->normal == XK_Caps_Lock)
-            is_active_modifier = state.caps_lock;
-
-        // Pressed state
-        bool is_pressed = (state.pressed_key_index == i);
         if (is_pressed)
             key_color = scheme.key_pressed;
 
-        // 2. Key shadow (1px below, slightly darker)
-        Rectangle shadow_rect = {kb.x, kb.y + KEY_SHADOW_OFFSET,
-                                 kb.width, kb.height};
+        // 2. Key shadow
+        Rectangle shadow_rect = {kb.x, kb.y + KEY_SHADOW_OFFSET, kb.width, kb.height};
         renderer_draw_rectangle(renderer, shadow_rect,
             color_with_opacity(scheme.key_shadow, opacity), KEY_CORNER_RADIUS);
 
@@ -85,31 +84,15 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
                 2.0, KEY_CORNER_RADIUS);
         }
 
-        // 5. Key label
+        // 5. Key label (Using Metadata)
         const char *label = keyboard_get_key_label(keyboard, i);
         if (label && label[0] != '\0') {
-            Color text_color = color_with_opacity(scheme.text_primary, opacity);
-
-            // Scale font based on key type
-            double font_size;
-            bool bold = false;
-            if (is_symbol_label(label)) {
-                // Unicode symbols (⇧⌫⏎ etc.) — slightly larger
-                font_size = base_font_size * LABEL_SCALE_SYMBOL;
-            } else if (is_modifier && strlen(label) > 1) {
-                // Text modifiers (ctrl, alt, fn) — smaller
-                font_size = base_font_size * LABEL_SCALE_MODIFIER;
-            } else {
-                // Regular letters and single chars
-                font_size = base_font_size * LABEL_SCALE_LETTER;
-                bold = true;
-            }
-
             FontSpec font = {
                 font_family ? font_family : "Inter",
-                font_size, bold, false
+                meta->font_size, meta->bold, false
             };
-            renderer_draw_text(renderer, label, kb, font, text_color,
+            renderer_draw_text(renderer, label, kb, font, 
+                              color_with_opacity(scheme.text_primary, opacity),
                               ALIGN_CENTER, VALIGN_CENTER);
         }
     }

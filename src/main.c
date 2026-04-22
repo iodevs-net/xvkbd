@@ -61,39 +61,29 @@ int main() {
     FontManager *font_manager = font_manager_create(&font_config);
     if (!font_manager) error_exit("Failed to create font manager");
 
-    // 4. Window size from screen
-    Display *tmp_dpy = XOpenDisplay(NULL);
-    if (!tmp_dpy) error_exit("Cannot open X11 display");
-    int screen_w = DisplayWidth(tmp_dpy, DefaultScreen(tmp_dpy));
-    XCloseDisplay(tmp_dpy);
-
-    double size_ratios[] = {
-        SCREEN_WIDTH_RATIO_SMALL,
-        SCREEN_WIDTH_RATIO_MEDIUM,
-        SCREEN_WIDTH_RATIO_LARGE
-    };
-    int kb_width = screen_w * size_ratios[config.keyboard_size];
-    int kb_height = kb_width * KEYBOARD_HEIGHT_RATIO;
-
-    // 5. X11 window
+    // 4. X11 window (detection of screen size happens inside window module or we pass defaults)
     WindowConfig window_config = {
         .x = -1, .y = -1,
-        .width = kb_width,
-        .height = kb_height,
+        .width = -1, // Use auto-detection based on screen size and ratio
+        .height = -1,
         .title = "0-board",
         .borderless = config.window_borderless,
         .override_redirect = false,
         .skip_taskbar = config.window_skip_taskbar,
-        .opacity = config.window_opacity
+        .opacity = config.window_opacity,
+        .initial_size_index = config.keyboard_size
     };
 
     X11Window *window = x11_window_create(&window_config);
     if (!window) error_exit("Failed to create X11 window");
 
     // 6. Renderer
+    int actual_w, actual_h;
+    x11_window_get_size(window, &actual_w, &actual_h);
+    
     RendererConfig renderer_config = {
-        .width = window_config.width,
-        .height = window_config.height,
+        .width = actual_w,
+        .height = actual_h,
         .default_opacity = 1.0,
         .clear_color = {0.0, 0.0, 0.0, 0.0}
     };

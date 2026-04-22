@@ -12,33 +12,26 @@ struct Engine {
     bool owns_display; // Whether we opened the display ourselves
 };
 
+#include <unistd.h>
+
 Engine* engine_create(EngineConfig *config) {
-    if (!config) {
-        fprintf(stderr, "engine_create: config cannot be NULL\n");
-        return NULL;
-    }
+    if (!config) return NULL;
     
     Engine *engine = malloc(sizeof(Engine));
-    if (!engine) {
-        fprintf(stderr, "engine_create: failed to allocate memory\n");
+    if (!engine) return NULL;
+    
+    // Always open a fresh display connection for the engine to avoid
+    // interference with the UI window's display. This is more robust for XTest.
+    engine->display = XOpenDisplay(NULL);
+    if (!engine->display) {
+        fprintf(stderr, "engine_create: failed to open independent X11 display\n");
+        free(engine);
         return NULL;
     }
     
-    engine->display = config->display;
     engine->use_xtest = config->use_xtest;
     engine->event_delay_ms = config->event_delay_ms;
-    engine->owns_display = false;
-    
-    // Open display if not provided
-    if (!engine->display) {
-        engine->display = XOpenDisplay(NULL);
-        if (!engine->display) {
-            fprintf(stderr, "engine_create: failed to open X11 display\n");
-            free(engine);
-            return NULL;
-        }
-        engine->owns_display = true;
-    }
+    engine->owns_display = true;
     
     return engine;
 }

@@ -87,6 +87,13 @@ Rectangle renderer_measure_text(Renderer *renderer, const char *text, FontSpec f
 // Resize render target
 void renderer_resize(Renderer *renderer, int width, int height);
 
+// Surface caching (KISS)
+typedef struct RendererSurface RendererSurface;
+RendererSurface* renderer_create_surface(Renderer *renderer, int width, int height);
+void renderer_draw_to_surface(Renderer *renderer, RendererSurface *surface, void (*draw_func)(Renderer*, void*), void *user_data);
+void renderer_draw_surface(Renderer *renderer, RendererSurface *surface, double x, double y, double opacity);
+void renderer_destroy_surface(RendererSurface *surface);
+
 // Destroy renderer
 void renderer_destroy(Renderer *renderer);
 

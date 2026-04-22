@@ -12,6 +12,15 @@ typedef struct X11Window X11Window;
 typedef struct FontManager FontManager;
 typedef struct Engine Engine;
 
+// Visual metadata for pre-calculated rendering
+typedef struct {
+    double font_size;
+    bool bold;
+    bool is_modifier;
+    bool is_special;
+    bool is_symbol;
+} KeyVisualMetadata;
+
 // UI configuration
 typedef struct {
     const char *title;

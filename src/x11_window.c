@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "constants.h"
 #include <sys/select.h>
 #include <sys/time.h>
 
@@ -12,6 +13,8 @@ struct X11Window {
     Window window;
     Visual *visual;
     int depth;
+    int screen;
+    int width, height;
     GC gc;
     Atom wm_delete_window;
     WindowEventCallback event_callback;
@@ -69,14 +72,28 @@ X11Window* x11_window_create(WindowConfig *config) {
         mask |= CWOverrideRedirect;
     }
     
+    // Auto-size or use config
+    int width = config->width;
+    int height = config->height;
+    if (width <= 0) {
+        int screen_w = DisplayWidth(win->display, win->screen);
+        double ratios[] = {SCREEN_WIDTH_RATIO_SMALL, SCREEN_WIDTH_RATIO_MEDIUM, SCREEN_WIDTH_RATIO_LARGE};
+        int idx = (config->initial_size_index >= 0 && config->initial_size_index < 3) ? config->initial_size_index : 1;
+        width = screen_w * ratios[idx];
+        height = width * KEYBOARD_HEIGHT_RATIO;
+    }
+
     // Use default position if not specified
     int x = config->x >= 0 ? config->x : 100;
     int y = config->y >= 0 ? config->y : 100;
     
     win->window = XCreateWindow(win->display, root, x, y, 
-                                config->width, config->height, 
+                                width, height, 
                                 0, win->depth, InputOutput, win->visual, 
                                 mask, &wa);
+    
+    win->width = width;
+    win->height = height;
     
     if (!win->window) {
         fprintf(stderr, "x11_window_create: failed to create window\n");
@@ -224,8 +241,15 @@ void x11_window_get_position(X11Window *window, int *x, int *y) {
 
 void x11_window_resize(X11Window *window, int width, int height) {
     if (!window || !window->display || width <= 0 || height <= 0) return;
-    
     XResizeWindow(window->display, window->window, width, height);
+    window->width = width;
+    window->height = height;
+}
+
+void x11_window_get_size(X11Window *window, int *width, int *height) {
+    if (!window) return;
+    if (width) *width = window->width;
+    if (height) *height = window->height;
 }
 
 void x11_window_set_title(X11Window *window, const char *title) {

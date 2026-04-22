@@ -6,12 +6,15 @@
 #include "colors.h"
 
 // Draw the keyboard (keys + background)
+#include "ui.h" // For KeyVisualMetadata
+
 void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
-                            Rectangle *key_bounds, int key_count,
-                            int win_width, int win_height,
+                            Rectangle *key_bounds, KeyVisualMetadata *key_metadata,
+                            int key_count, int win_width, int win_height,
                             int menu_offset, double opacity,
                             int color_scheme_index,
-                            const char *font_family);
+                            const char *font_family,
+                            bool draw_dynamic);
 
 // Draw the menu bar
 void ui_render_draw_menu_bar(Renderer *renderer, int win_width,

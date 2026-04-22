@@ -10,7 +10,8 @@ typedef struct X11Window X11Window;
 // Window configuration
 typedef struct {
     int x, y;                 // Position (-1 for center)
-    int width, height;        // Size
+    int width, height;        // Size (-1 for auto-detect)
+    int initial_size_index;   // 0=small, 1=medium, 2=large (for auto-size)
     const char *title;        // Window title
     bool borderless;          // Whether to show window decorations
     bool override_redirect;   // Bypass window manager
@@ -83,6 +84,9 @@ void x11_window_get_position(X11Window *window, int *x, int *y);
 
 // Resize window
 void x11_window_resize(X11Window *window, int width, int height);
+
+// Get current window size
+void x11_window_get_size(X11Window *window, int *width, int *height);
 
 // Set window title
 void x11_window_set_title(X11Window *window, const char *title);

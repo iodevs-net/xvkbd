@@ -30,9 +30,16 @@ struct UI {
     
     // Layout cache
     Rectangle *key_bounds;
+    KeyVisualMetadata *key_metadata;
     int key_count;
     int current_width;
     int current_height;
+    
+    // Rendering cache
+    RendererSurface *bg_cache;
+    bool bg_dirty;
+    int last_rendered_layer;
+    bool last_rendered_caps;
     
     // Interaction state
     bool dragging;
