@@ -270,12 +270,36 @@ void ui_toggle_dock_position(UI *ui) {
     int screen_w = DisplayWidth(dpy, DefaultScreen(dpy));
     int screen_h = DisplayHeight(dpy, DefaultScreen(dpy));
     
-    ui->docked_top = !ui->docked_top;
+    int wx, wy;
+    x11_window_get_position(ui->window, &wx, &wy);
+    
+    int bottom_y = screen_h - ui->current_height;
+    int target_y;
+
+    // Logic: 
+    // 1. If at border, toggle to the other.
+    // 2. If floating, snap to nearest border.
+    if (wy <= 10) {
+        // At top, move to bottom
+        ui->docked_top = false;
+        target_y = bottom_y;
+    } else if (wy >= bottom_y - 10) {
+        // At bottom, move to top
+        ui->docked_top = true;
+        target_y = 0;
+    } else {
+        // Floating: Snap to nearest
+        if (wy + ui->current_height / 2 < screen_h / 2) {
+            ui->docked_top = true;
+            target_y = 0;
+        } else {
+            ui->docked_top = false;
+            target_y = bottom_y;
+        }
+    }
     
     int pos_x = (screen_w - ui->current_width) / 2;
-    int pos_y = ui->docked_top ? 0 : (screen_h - ui->current_height);
-    
-    x11_window_move(ui->window, pos_x, pos_y);
+    ui_apply_geometry(ui, pos_x, target_y);
     ui->dirty = true;
 }
 bool ui_is_menu_visible(const UI *ui) { return ui ? ui->menu_visible : false; }
