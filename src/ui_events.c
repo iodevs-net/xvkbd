@@ -72,14 +72,20 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
                 int effective_layer = keyboard_get_effective_layer(ui->keyboard, i);
 
                 if (sym != 0) {
-                    keyboard_press_key(ui->keyboard, i);
+                    // Right Command (⌘) toggles keyboard size
+                    if (sym == XK_Super_R) {
+                        int next_size = (ui->size_index + 1) % 3;
+                        ui_set_size_index(ui, next_size);
+                    } else {
+                        keyboard_press_key(ui->keyboard, i);
 
-                    int modifiers = (effective_layer == 1) ? 1 : 0;
-                    engine_send_key_ex(ui->engine, sym, true, modifiers);
-                    engine_send_key_ex(ui->engine, sym, false, modifiers);
-                    engine_flush(ui->engine);
+                        int modifiers = (effective_layer == 1) ? 1 : 0;
+                        engine_send_key_ex(ui->engine, sym, true, modifiers);
+                        engine_send_key_ex(ui->engine, sym, false, modifiers);
+                        engine_flush(ui->engine);
 
-                    keyboard_notify_key_sent(ui->keyboard, i);
+                        keyboard_notify_key_sent(ui->keyboard, i);
+                    }
                 }
             }
             break;
