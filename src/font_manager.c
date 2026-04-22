@@ -1,3 +1,8 @@
+/*
+ * 0-Board Virtual Keyboard
+ * Copyright (c) 2026 Leonardo Vergara <leonardovergaramarin@gmail.com>
+ * Licensed under the MIT License.
+ */
 #include "font_manager.h"
 
 #define FM_DEFAULT_CACHE_SIZE 50

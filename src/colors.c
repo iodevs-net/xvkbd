@@ -1,3 +1,8 @@
+/*
+ * 0-Board Virtual Keyboard
+ * Copyright (c) 2026 Leonardo Vergara <leonardovergaramarin@gmail.com>
+ * Licensed under the MIT License.
+ */
 #include "colors.h"
 
 // Hex helper: (r, g, b, a) where r/g/b are 0-255 mapped to 0.0-1.0

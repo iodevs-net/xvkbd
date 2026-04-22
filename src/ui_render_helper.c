@@ -1,3 +1,8 @@
+/*
+ * 0-Board Virtual Keyboard
+ * Copyright (c) 2026 Leonardo Vergara <leonardovergaramarin@gmail.com>
+ * Licensed under the MIT License.
+ */
 #include "ui_render_helper.h"
 #include "constants.h"
 #include "layout.h"

@@ -1,3 +1,8 @@
+/*
+ * 0-Board Virtual Keyboard
+ * Copyright (c) 2026 Leonardo Vergara <leonardovergaramarin@gmail.com>
+ * Licensed under the MIT License.
+ */
 #ifndef UI_RENDER_HELPER_H
 #define UI_RENDER_HELPER_H
 

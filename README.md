@@ -2,6 +2,8 @@
 
 A modern virtual keyboard built from scratch with a focus on clean architecture, maintainability, and IA-agent friendliness.
 
+Developed by **Leonardo Vergara** (<leonardovergaramarin@gmail.com>)
+
 ## Philosophy
 
 - **Pure C Architecture**: Escrito en C99 puro para máxima eficiencia, portabilidad y un consumo de recursos cercano a cero. Sin dependencias de C++ ni runtimes pesados.
