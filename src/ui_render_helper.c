@@ -37,12 +37,11 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
                             Rectangle *key_bounds, KeyVisualMetadata *key_metadata,
                             int key_count, int win_width, int win_height,
                             int menu_offset, double opacity,
-                            int color_scheme_index,
+                            ColorScheme scheme,
                             const char *font_family,
                             bool draw_dynamic) {
     if (!renderer || !keyboard || !key_bounds || !key_metadata) return;
 
-    ColorScheme scheme = color_scheme_get(color_scheme_index);
     Layout *layout = keyboard_get_layout(keyboard);
     KeyboardState state = keyboard_get_state(keyboard);
 
@@ -76,17 +75,24 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
         // - Dynamic pass (draw_dynamic=true): Only draw keys that need a highlight (pressed or active modifier).
         if (draw_dynamic && !(is_pressed || is_active_modifier)) continue;
 
-        // --- Key color selection (Using Metadata) ---
+        // --- Key color selection (Using Enhanced Metadata) ---
         Color key_color;
-        if (meta->is_special)
-            key_color = scheme.key_special;
-        else if (meta->is_modifier)
-            key_color = scheme.key_modifier;
-        else
-            key_color = scheme.key_normal;
-
-        if (is_pressed)
+        
+        if (is_pressed) {
             key_color = scheme.key_pressed;
+        } else if (is_active_modifier) {
+            key_color = scheme.shift_active;
+        } else if (meta->is_special) {
+            key_color = scheme.key_special;
+        } else if (meta->is_modifier) {
+            key_color = scheme.key_modifier;
+        } else if (meta->is_number) {
+            key_color = scheme.key_number;
+        } else if (meta->is_text) {
+            key_color = scheme.key_text;
+        } else {
+            key_color = scheme.key_normal;
+        }
 
         // 2. Key shadow
         Rectangle shadow_rect = {kb.x, kb.y + KEY_SHADOW_OFFSET, kb.width, kb.height};
@@ -120,10 +126,8 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
 
 void ui_render_draw_menu_bar(Renderer *renderer, int win_width,
                             double opacity, int font_size,
-                            int color_scheme_index) {
+                            ColorScheme scheme) {
     if (!renderer) return;
-
-    ColorScheme scheme = color_scheme_get(color_scheme_index);
 
     Rectangle menu_bar = {0, 0, win_width, MENU_BAR_HEIGHT};
     Color menu_color = color_with_opacity(scheme.background, opacity);
@@ -141,7 +145,7 @@ void ui_render_draw_menu_bar(Renderer *renderer, int win_width,
     snprintf(menu_right, sizeof(menu_right), "[x]");
 
     FontSpec font = {
-        "Inter", font_size * 0.75, false, false
+        "Inter", (int)(font_size * 0.75), false, false
     };
     Color text_color = color_with_opacity(scheme.text_secondary, opacity);
     
@@ -150,22 +154,20 @@ void ui_render_draw_menu_bar(Renderer *renderer, int win_width,
     renderer_draw_text(renderer, menu_left, left_bounds, font, text_color,
                       ALIGN_LEFT, VALIGN_CENTER);
                       
-    // Right close button
-    Rectangle right_bounds = {20, 0, win_width - 40, MENU_BAR_HEIGHT};
+    // Right controls
+    Rectangle right_bounds = {0, 0, win_width - 20, MENU_BAR_HEIGHT};
     renderer_draw_text(renderer, menu_right, right_bounds, font, text_color,
                       ALIGN_RIGHT, VALIGN_CENTER);
 }
 
 void ui_render_draw_drag_handle(Renderer *renderer, int win_width,
-                               int color_scheme_index, double opacity) {
+                               ColorScheme scheme, double opacity) {
     if (!renderer) return;
-
-    ColorScheme scheme = color_scheme_get(color_scheme_index);
-
-    double pill_x = (win_width - DRAG_PILL_WIDTH) / 2.0;
-    double pill_y = 6.0;
-    Rectangle pill = {pill_x, pill_y, DRAG_PILL_WIDTH, DRAG_PILL_HEIGHT};
-    renderer_draw_rectangle(renderer, pill,
-        color_with_opacity(scheme.drag_handle, opacity),
-        DRAG_PILL_HEIGHT / 2.0);
+    
+    double handle_w = 40;
+    double handle_h = 4;
+    Rectangle handle = {(win_width - handle_w)/2, (MENU_BAR_HEIGHT - handle_h)/2, (int)handle_w, (int)handle_h};
+    
+    renderer_draw_rectangle(renderer, handle, 
+        color_with_opacity(scheme.drag_handle, opacity), 2);
 }

@@ -56,8 +56,13 @@ void ui_calculate_layout(UI *ui) {
         KeyVisualMetadata *m = &ui->key_metadata[i];
         
         m->is_modifier = (key->flags & KEYFLAG_MODIFIER);
-        m->is_special = (key->normal == XK_BackSpace || key->normal == XK_Return || key->normal == XK_space);
+        m->is_special = (key->normal == XK_BackSpace || key->normal == XK_Return || 
+                         key->normal == XK_space || (key->normal >= XK_Left && key->normal <= XK_Down));
         
+        m->is_number = (key->normal >= XK_0 && key->normal <= XK_9);
+        m->is_text = ((key->normal >= XK_a && key->normal <= XK_z) || 
+                      (key->normal >= XK_A && key->normal <= XK_Z));
+
         const char *label = key->label;
         // Identify non-ASCII symbols for specialized rendering (icons/unicode)
         m->is_symbol = (label && (unsigned char)label[0] >= 0xC0 && strlen(label) <= 4);
@@ -108,7 +113,11 @@ UI* ui_create(UIConfig *config, Keyboard *keyboard,
     }
 
     ui->opacity = ui->config.initial_opacity;
+    ui->color_scheme_index = COLOR_SCHEME_SPACE_GRAY;
     ui->size_index = ui->config.initial_size;
+    strncpy(ui->custom_theme_path, "assets/themes/default.theme", sizeof(ui->custom_theme_path));
+    ui_update_theme_cache(ui);
+    
     ui->menu_visible = ui->config.show_menu_bar;
     ui->dirty = true;
 
@@ -133,6 +142,32 @@ void ui_set_engine(UI *ui, Engine *engine) {
     if (ui) ui->engine = engine;
 }
 
+static void ui_update_theme_cache(UI *ui) {
+    if (ui->color_scheme_index == COLOR_SCHEME_CUSTOM) {
+        ui->cached_scheme = color_scheme_load_custom(ui->custom_theme_path);
+        
+        // Also check for font_family in the theme file manually for now
+        FILE *f = fopen(ui->custom_theme_path, "r");
+        if (f) {
+            char line[256];
+            while (fgets(line, sizeof(line), f)) {
+                char key[64], val[64];
+                if (sscanf(line, "%63[^= ] = %63s", key, val) == 2) {
+                    if (strcmp(key, "font_family") == 0) {
+                        strncpy(ui->custom_font_family, val, sizeof(ui->custom_font_family));
+                        ui_set_font_family(ui, ui->custom_font_family);
+                    }
+                }
+            }
+            fclose(f);
+        }
+    } else {
+        ui->cached_scheme = color_scheme_get(ui->color_scheme_index);
+    }
+    ui->bg_dirty = true;
+    ui->dirty = true;
+}
+
 static void ui_render_static_bg_callback(Renderer *renderer, void *user_data) {
     UI *ui = (UI*)user_data;
     renderer_clear(renderer, (Color){0,0,0,0});
@@ -142,7 +177,7 @@ static void ui_render_static_bg_callback(Renderer *renderer, void *user_data) {
     ui_render_draw_keyboard(renderer, ui->keyboard,
         ui->key_bounds, ui->key_metadata, ui->key_count,
         ui->current_width, ui->current_height,
-        menu_offset, 1.0, ui->color_scheme_index,
+        menu_offset, 1.0, ui->cached_scheme,
         current_font, false); // draw_dynamic = false
 }
 
@@ -159,7 +194,7 @@ static void ui_render_frame(UI *ui) {
                          (kb_state.caps_lock != ui->last_rendered_caps);
 
     if (ui->bg_dirty || layer_changed || !ui->bg_cache) {
-        ui->last_rendered_layer = kb_state.current_layer;
+        ui->last_rendered_layer = (int)kb_state.current_layer;
         ui->last_rendered_caps = kb_state.caps_lock;
         ui_update_bg_cache(ui);
     }
@@ -177,16 +212,16 @@ static void ui_render_frame(UI *ui) {
     ui_render_draw_keyboard(ui->renderer, ui->keyboard,
         ui->key_bounds, ui->key_metadata, ui->key_count,
         ui->current_width, ui->current_height,
-        menu_offset, ui->opacity, ui->color_scheme_index,
+        menu_offset, ui->opacity, ui->cached_scheme,
         current_font, true); // draw_dynamic = true
 
-    ui_render_draw_drag_handle(ui->renderer, ui->current_width,
-        ui->color_scheme_index, ui->opacity);
-
+    // 3. Draw menu bar if visible
     if (ui->menu_visible) {
         ui_render_draw_menu_bar(ui->renderer, ui->current_width,
-            ui->opacity, ui->current_width * FONT_SIZE_RATIO + 2,
-            ui->color_scheme_index);
+                               ui->opacity, (int)(ui->current_width * 0.03),
+                               ui->cached_scheme);
+        ui_render_draw_drag_handle(ui->renderer, ui->current_width,
+                                  ui->cached_scheme, ui->opacity);
     }
 
     renderer_end_frame(ui->renderer);
@@ -249,8 +284,7 @@ int ui_get_color_scheme(const UI *ui) { return ui ? ui->color_scheme_index : 0; 
 void ui_set_color_scheme(UI *ui, int scheme_index) {
     if (!ui) return;
     ui->color_scheme_index = scheme_index;
-    ui->bg_dirty = true;
-    ui->dirty = true;
+    ui_update_theme_cache(ui);
 }
 
 const char* ui_get_font_family(const UI *ui) {

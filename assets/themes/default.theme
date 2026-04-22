@@ -1,0 +1,18 @@
+# 0-Board Theme: Modern Dark (Default)
+# Colors in HEX format (#RRGGBB)
+
+background      = #1c1c1e
+text            = #ffffff
+text_secondary  = #aeaeb2
+font_family     = Inter
+
+key_normal      = #3a3a3c
+key_pressed     = #636366
+key_modifier    = #2c2c2e
+key_text        = #3a3a3c
+key_number      = #3a3a3c
+key_special     = #48484a
+
+shift_active    = #0a84ff
+accent          = #0a84ff
+drag_handle     = #8e8e93

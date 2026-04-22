@@ -24,6 +24,8 @@ struct UI {
     
     // Configuration
     UIConfig config;
+    char custom_theme_path[256];
+    char custom_font_family[64];
     
     // State
     double opacity;
@@ -42,6 +44,7 @@ struct UI {
     int current_height;
     
     // Rendering cache
+    ColorScheme cached_scheme;
     RendererSurface *bg_cache;
     bool bg_dirty;
     int last_rendered_layer;

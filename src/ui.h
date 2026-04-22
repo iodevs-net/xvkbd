@@ -21,9 +21,11 @@ typedef struct Engine Engine;
 typedef struct {
     double font_size;
     bool bold;
-    bool is_modifier;
-    bool is_special;
-    bool is_symbol;
+    bool is_modifier;  // Shift, Ctrl, Alt, Caps
+    bool is_special;   // Enter, Backspace, Space, Arrows
+    bool is_number;    // 1, 2, 3...
+    bool is_text;      // a, b, c...
+    bool is_symbol;    // Icons/Symbols
 } KeyVisualMetadata;
 
 // UI configuration

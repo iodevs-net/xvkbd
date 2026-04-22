@@ -1,0 +1,17 @@
+# 0-Board Theme: Cyberpunk Neon
+# Colors in HEX format (#RRGGBB)
+
+background      = #000000
+text            = #00ffff
+text_secondary  = #ff00ff
+
+key_normal      = #1a1a1a
+key_pressed     = #ff00ff
+key_modifier    = #0d0d0d
+key_text        = #1a1a1a
+key_number      = #1a1a1a
+key_special     = #333333
+
+shift_active    = #00ffff
+accent          = #00ffff
+drag_handle     = #ff00ff
