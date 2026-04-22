@@ -2,6 +2,7 @@
 #define UI_H
 
 #include <stdbool.h>
+#include <signal.h>
 
 // Forward declarations
 typedef struct UI UI;
@@ -27,8 +28,11 @@ UI* ui_create(UIConfig *config, Keyboard *keyboard,
 // Set the input engine
 void ui_set_engine(UI *ui, Engine *engine);
 
-// Run the UI main loop
+// Run the UI main loop (blocks until close)
 void ui_run(UI *ui);
+
+// Run with external shutdown flag (for signal handling)
+void ui_run_with_shutdown(UI *ui, volatile sig_atomic_t *shutdown_flag);
 
 // Get current opacity
 double ui_get_opacity(const UI *ui);

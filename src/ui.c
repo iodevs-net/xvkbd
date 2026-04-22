@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Minimum interval between frames (ms). 30fps max = ~33ms
+#define MIN_FRAME_INTERVAL_MS 33
+
 void ui_calculate_layout(UI *ui) {
     if (!ui || !ui->keyboard) return;
 
@@ -74,40 +77,70 @@ void ui_set_engine(UI *ui, Engine *engine) {
     if (ui) ui->engine = engine;
 }
 
+static void ui_render_frame(UI *ui) {
+    renderer_begin_frame(ui->renderer);
+    renderer_clear(ui->renderer, (Color){0,0,0,CLEAR_ALPHA});
+
+    int menu_offset = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
+    const char *current_font = font_manager_get_current_family(ui->font_manager);
+
+    ui_render_draw_keyboard(ui->renderer, ui->keyboard,
+        ui->key_bounds, ui->key_count,
+        ui->current_width, ui->current_height,
+        menu_offset, ui->opacity, ui->color_scheme_index,
+        current_font);
+
+    ui_render_draw_drag_handle(ui->renderer, ui->current_width,
+        ui->color_scheme_index, ui->opacity);
+
+    if (ui->menu_visible) {
+        ui_render_draw_menu_bar(ui->renderer, ui->current_width,
+            ui->opacity, ui->current_width * FONT_SIZE_RATIO + 2,
+            ui->color_scheme_index);
+    }
+
+    renderer_end_frame(ui->renderer);
+    renderer_present_to_window(ui->renderer);
+
+    ui->dirty = false;
+    keyboard_mark_clean(ui->keyboard);
+}
+
 void ui_run(UI *ui) {
+    ui_run_with_shutdown(ui, NULL);
+}
+
+void ui_run_with_shutdown(UI *ui, volatile sig_atomic_t *shutdown_flag) {
     if (!ui) return;
 
+    // Initial render
+    ui_render_frame(ui);
+
     while (!ui->should_close) {
-        bool had_events = x11_window_wait_event(ui->window, 100);
+        // Check external shutdown flag (signals)
+        if (shutdown_flag && *shutdown_flag) {
+            ui->should_close = true;
+            break;
+        }
 
-        if (ui->dirty || keyboard_is_dirty(ui->keyboard) || had_events) {
-            renderer_begin_frame(ui->renderer);
-            renderer_clear(ui->renderer, (Color){0,0,0,CLEAR_ALPHA});
+        bool needs_render = false;
 
-            int menu_offset = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
-            const char *current_font = font_manager_get_current_family(ui->font_manager);
-
-            ui_render_draw_keyboard(ui->renderer, ui->keyboard,
-                ui->key_bounds, ui->key_count,
-                ui->current_width, ui->current_height,
-                menu_offset, ui->opacity, ui->color_scheme_index,
-                current_font);
-
-            // Drag handle pill on top of keyboard
-            ui_render_draw_drag_handle(ui->renderer, ui->current_width,
-                ui->color_scheme_index, ui->opacity);
-
-            if (ui->menu_visible) {
-                ui_render_draw_menu_bar(ui->renderer, ui->current_width,
-                    ui->opacity, ui->current_width * FONT_SIZE_RATIO + 2,
-                    ui->color_scheme_index);
+        if (ui->dirty || keyboard_is_dirty(ui->keyboard)) {
+            // Pending render — use short timeout so we batch events
+            x11_window_wait_event(ui->window, MIN_FRAME_INTERVAL_MS);
+            x11_window_process_events(ui->window);
+            needs_render = true;
+        } else {
+            // Nothing pending — wait up to 500ms (allows signal checks)
+            bool had_event = x11_window_wait_event(ui->window, 500);
+            if (had_event) {
+                x11_window_process_events(ui->window);
+                needs_render = ui->dirty || keyboard_is_dirty(ui->keyboard);
             }
+        }
 
-            renderer_end_frame(ui->renderer);
-            renderer_present_to_window(ui->renderer);
-
-            ui->dirty = false;
-            keyboard_mark_clean(ui->keyboard);
+        if (needs_render && !ui->should_close) {
+            ui_render_frame(ui);
         }
     }
 }

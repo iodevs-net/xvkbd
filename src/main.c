@@ -11,6 +11,14 @@
 #include "debug.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+
+static volatile sig_atomic_t g_shutdown = 0;
+
+static void signal_handler(int sig) {
+    (void)sig;
+    g_shutdown = 1;
+}
 
 static void error_exit(const char *message) {
     fprintf(stderr, "Error: %s\n", message);
@@ -18,6 +26,15 @@ static void error_exit(const char *message) {
 }
 
 int main() {
+    // Catch SIGTERM, SIGINT, SIGHUP for clean exit
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGHUP, &sa, NULL);
+
     Config config;
     config_load_defaults(&config);
 
@@ -108,9 +125,9 @@ int main() {
 
     printf("0-board ready.\n");
 
-    // 9. Main loop
+    // 9. Main loop — pass shutdown flag
     x11_window_show(window);
-    ui_run(ui);
+    ui_run_with_shutdown(ui, &g_shutdown);
 
     // 10. Cleanup
     ui_destroy(ui);

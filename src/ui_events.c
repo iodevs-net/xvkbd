@@ -9,13 +9,23 @@
 void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) {
     if (!ui) return;
 
-    // Drag: button 1 in top drag handle zone, or middle-click anywhere
-    int drag_zone = ui->current_height * DRAG_HANDLE_HEIGHT_RATIO;
-    if (drag_zone < 12) drag_zone = 12;
+    // Drag zone: any edge of the keyboard
+    int edge = ui->current_height * DRAG_HANDLE_HEIGHT_RATIO;
+    if (edge < 12) edge = 12;
 
     int keyboard_top = ui->menu_visible ? MENU_BAR_HEIGHT : 0;
+    bool on_edge = false;
 
-    if (button == 2 || (button == 1 && wy >= keyboard_top && wy < keyboard_top + drag_zone)) {
+    // Top edge
+    if (wy >= keyboard_top && wy < keyboard_top + edge) on_edge = true;
+    // Bottom edge
+    if (wy > ui->current_height - edge) on_edge = true;
+    // Left edge
+    if (wx < edge) on_edge = true;
+    // Right edge
+    if (wx > ui->current_width - edge) on_edge = true;
+
+    if (button == 2 || (button == 1 && on_edge)) {
         x11_window_get_position(ui->window, &ui->win_start_x, &ui->win_start_y);
         ui->drag_start_root_x = rx;
         ui->drag_start_root_y = ry;
@@ -90,6 +100,7 @@ void ui_handle_motion(UI *ui, int rx, int ry) {
     int dy = ry - ui->drag_start_root_y;
 
     x11_window_move(ui->window, ui->win_start_x + dx, ui->win_start_y + dy);
+    // Do NOT set dirty — window move doesn't change content
 }
 
 void ui_event_callback(X11Window *window, WindowEvent *event, void *user_data) {
@@ -99,12 +110,18 @@ void ui_event_callback(X11Window *window, WindowEvent *event, void *user_data) {
 
     switch (event->type) {
         case WINDOW_EVENT_RESIZE:
+            // Ignore resize events during drag — they're just position changes
+            if (ui->dragging) break;
             if (event->width != ui->current_width || event->height != ui->current_height) {
                 ui->current_width = event->width;
                 ui->current_height = event->height;
                 ui_calculate_layout(ui);
-                ui->dirty = true;
             }
+            break;
+
+        case WINDOW_EVENT_EXPOSE:
+            // Window needs repaint (uncovered, mapped, etc.)
+            ui->dirty = true;
             break;
 
         case WINDOW_EVENT_MOTION:
