@@ -79,7 +79,7 @@ void ui_calculate_layout(UI *ui) {
             m->bold = false;
         } else {
             m->font_size = base_font_size * LABEL_SCALE_LETTER;
-            m->bold = true;
+            m->bold = false;
         }
     }
 

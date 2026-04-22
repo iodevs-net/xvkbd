@@ -19,12 +19,12 @@
 #define KEYBOARD_HEIGHT_RATIO 0.38
 #define KEY_PADDING_RATIO     0.012
 #define KEY_GAP_RATIO         0.004
-#define FONT_SIZE_RATIO       0.032
+#define FONT_SIZE_RATIO       0.030
 
 // Font sizing per key type
-#define LABEL_SCALE_LETTER   1.15
-#define LABEL_SCALE_MODIFIER 0.72
-#define LABEL_SCALE_SYMBOL   1.05
+#define LABEL_SCALE_LETTER   0.90
+#define LABEL_SCALE_MODIFIER 0.65
+#define LABEL_SCALE_SYMBOL   0.95
 
 // Drag handle
 #define DRAG_HANDLE_HEIGHT_RATIO 0.07
@@ -46,7 +46,7 @@
 #define NUM_BUFFERED_SIZES      3
 
 // Font path (relative to binary)
-#define FONT_PATH_PRIMARY   "assets/fonts/extras/ttf/Inter-Medium.ttf"
+#define FONT_PATH_PRIMARY   "assets/fonts/extras/ttf/Inter-Light.ttf"
 #define FONT_PATH_FALLBACK  "assets/fonts/extras/ttf/Inter-Regular.ttf"
 
 #endif // CONSTANTS_H
