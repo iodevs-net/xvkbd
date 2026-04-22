@@ -19,12 +19,13 @@ A modern virtual keyboard built from scratch with a focus on clean architecture,
 
 ### Benchmark Comparison
 
-| Metric | Traditional (GTK/Qt) | Electron-based | **0-Board** |
+| Metric | xvkbd (The Classic) | Electron-based | **0-Board** |
 | :--- | :--- | :--- | :--- |
-| **Idle CPU** | 1-3% | 5-10% | **< 0.1%** |
-| **Memory (RSS)** | 40-80MB | 150MB+ | **~10MB** |
-| **Startup Time** | ~1.5s | ~3.0s | **< 0.1s** |
-| **Binary Size** | 2MB+ | 100MB+ | **< 200KB** |
+| **Idle CPU** | < 0.1% | 5-10% | **< 0.1%** |
+| **Memory (RSS)** | ~7MB | 150MB+ | **~10MB** |
+| **Startup Time** | ~0.1s | ~3.0s | **< 0.1s** |
+| **Graphics** | Bitmap/Primitive | Browser Engine | **Vector (Cairo)** |
+| **Binary Size** | ~150KB | 100MB+ | **~180KB** |
 
 ## Key Features
 
