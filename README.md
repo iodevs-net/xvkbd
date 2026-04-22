@@ -27,6 +27,15 @@ A modern virtual keyboard built from scratch with a focus on clean architecture,
 | **Graphics** | Bitmap/Primitive | Browser Engine | **Vector (Cairo)** |
 | **Binary Size** | ~150KB | 100MB+ | **~180KB** |
 
+## User Experience (UX)
+
+0-Board is designed to be as comfortable for the user as it is efficient for the system:
+- **Easy Resizing**: Cycle through Small, Medium, and Large sizes with a single tap.
+- **Custom Transparency**: Real-time opacity control to balance visibility and screen real estate.
+- **Modern Themes**: Support for curated Light and Dark modes.
+- **Compact Format**: Minimalist design that maximizes screen space on tablets and small screens.
+- **Quick Docking**: Instantly toggle between top and bottom screen positions.
+
 ## Key Features
 
 - **Vector Rendering**: Cairo-based, antialiased, native transparency.
