@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 // Forward declaration
 static void ui_update_theme_cache(UI *ui);
@@ -264,8 +265,17 @@ void ui_run_with_shutdown(UI *ui, volatile sig_atomic_t *shutdown_flag) {
             bool had_event = x11_window_wait_event(ui->window, 500);
             if (had_event) {
                 x11_window_process_events(ui->window);
-                needs_render = ui->dirty || keyboard_is_dirty(ui->keyboard);
             }
+            
+            // Check recording state changes (Polling every 500ms max)
+            static bool last_rec_state = false;
+            bool current_rec_state = (access("/tmp/0-voice-recording", F_OK) == 0);
+            if (current_rec_state != last_rec_state) {
+                ui->dirty = true;
+                last_rec_state = current_rec_state;
+            }
+            
+            needs_render = ui->dirty || keyboard_is_dirty(ui->keyboard);
         }
 
         if (needs_render && !ui->should_close) {

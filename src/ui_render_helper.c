@@ -10,6 +10,8 @@
 #include <X11/keysym.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 // Determine if a key label is a single unicode symbol (modifier icons)
 
@@ -69,17 +71,24 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
             
             is_pressed = (state.pressed_key_index == i);
         }
-        
+        bool is_recording = false;
+        const char *label = keyboard_get_key_label(keyboard, i);
+        if (label && strcmp(label, "mic") == 0 && access("/tmp/0-voice-recording", F_OK) == 0) {
+            is_recording = true;
+        }
+
         // Filtering: 
         // - Background pass (draw_dynamic=false): Draw EVERY key in its current label/state.
-        // - Dynamic pass (draw_dynamic=true): Only draw keys that need a highlight (pressed or active modifier).
-        if (draw_dynamic && !(is_pressed || is_active_modifier)) continue;
+        // - Dynamic pass (draw_dynamic=true): Only draw keys that need a highlight.
+        if (draw_dynamic && !(is_pressed || is_active_modifier || is_recording)) continue;
 
         // --- Key color selection (Using Enhanced Metadata) ---
         Color key_color;
         
         if (is_pressed) {
             key_color = scheme.key_pressed;
+        } else if (label && strcmp(label, "mic") == 0 && access("/tmp/0-voice-recording", F_OK) == 0) {
+            key_color = (Color){0.9, 0.2, 0.2, 1.0}; // Red when recording
         } else if (is_active_modifier) {
             key_color = scheme.shift_active;
         } else if (meta->is_special) {
@@ -111,7 +120,6 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
         }
 
         // 5. Key label (Using Metadata)
-        const char *label = keyboard_get_key_label(keyboard, i);
         if (label && label[0] != '\0') {
             FontSpec font = {
                 font_family ? font_family : "Inter",

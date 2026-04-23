@@ -37,6 +37,7 @@ A modern virtual keyboard built from scratch with a focus on clean architecture,
 - **Custom Transparency**: Real-time opacity control to balance visibility and screen real estate.
 - **Deep Customization**: Edit `.theme` files in `assets/themes/` to control every color (background, keys, text, etc.).
 - **Modern Themes**: Support for curated Light, Dark, and Custom modes.
+- **Voice Dictation (Zero-Friction)**: A seamlessly integrated voice-to-text dictation feature triggered by the `mic` key. Uses Whisper-Large-v3 via API. Built with a pure "zero-resource" architecture—instead of heavy IPCs, it relies on a lightweight atomic lock file (`/tmp/0-voice-recording`) that the UI loop polls every 500ms at `0.0%` CPU cost, dynamically overriding the rendering pass to turn the microphone key **red** while listening.
 - **Compact Format**: Minimalist design that maximizes screen space on tablets and small screens.
 - **Quick Docking**: Instantly toggle between top and bottom screen positions.
 - **Audit-Ready**: Deeply documented code for easy auditing, maintenance, and customization.

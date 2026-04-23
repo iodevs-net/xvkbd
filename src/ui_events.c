@@ -11,6 +11,7 @@
 #include <X11/keysym.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) {
     if (!ui) return;
@@ -52,7 +53,7 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
             ui_set_opacity(ui, ui->opacity - MENU_OPACITY_STEP);
         } else if (mx < zone_w * 2) {
             ui_set_opacity(ui, ui->opacity + MENU_OPACITY_STEP);
-        } else if (mx > zone_w * 3 && mx < zone_w * 5) {
+        } else if (mx > zone_w * 5 && mx < zone_w * 7) {
             ui_set_color_scheme(ui, (ui->color_scheme_index + 1) % NUM_COLOR_SCHEMES);
         } else if (mx > ui->current_width - zone_w) {
             // Close button [x] at far right
@@ -110,6 +111,10 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
                         // 4. APPLY ATOMICALLY. x11_window_move_resize uses XMoveResizeWindow
                         // to ensure no intermediate flicker or WM corrections.
                         ui_apply_geometry(ui, new_wx, new_wy);
+                    } else if (sym == XK_Super_L) {
+                        // Microphone key triggers the voice script
+                        system("/usr/local/bin/0-voice &");
+                        ui->dirty = true;
                     } else {
                         keyboard_press_key(ui->keyboard, i);
                         

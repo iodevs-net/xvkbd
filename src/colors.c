@@ -25,20 +25,21 @@ static Color parse_hex(const char *hex) {
 ColorScheme color_scheme_get(int id) {
     switch (id) {
         case COLOR_SCHEME_SPACE_GRAY:
+            // "Macbook Pro / Magic Keyboard" aesthetic
             return (ColorScheme){
-                .background    = RGBA(28, 28, 30,    1.0),
-                .text_primary  = RGBA(255, 255, 255, 1.0),
-                .text_secondary= RGBA(174, 174, 178, 1.0),
-                .key_normal    = RGBA(58, 58, 60,    1.0),
-                .key_pressed   = RGBA(99, 99, 102,   1.0),
-                .key_modifier  = RGBA(44, 44, 46,    1.0),
-                .key_text      = RGBA(58, 58, 60,    1.0),
-                .key_number    = RGBA(58, 58, 60,    1.0),
-                .key_special   = RGBA(72, 72, 74,    1.0),
-                .shift_active  = RGBA(10, 132, 255,  1.0),
+                .background    = RGBA(45, 45, 48,    1.0), // Space Grey Aluminum Chassis
+                .text_primary  = RGBA(210, 210, 215, 1.0), // Crisp but slightly muted white
+                .text_secondary= RGBA(150, 150, 155, 1.0), // Menu text
+                .key_normal    = RGBA(22, 22, 24,    1.0), // Deep black keys
+                .key_pressed   = RGBA(60, 60, 65,    1.0), // Highlight when pressed
+                .key_modifier  = RGBA(22, 22, 24,    1.0), // Uniform color (no grey modifiers)
+                .key_text      = RGBA(22, 22, 24,    1.0), // Uniform
+                .key_number    = RGBA(22, 22, 24,    1.0), // Uniform
+                .key_special   = RGBA(22, 22, 24,    1.0), // Uniform
+                .shift_active  = RGBA(255, 255, 255, 0.15),
                 .accent        = RGBA(10, 132, 255,  1.0),
-                .drag_handle   = RGBA(142, 142, 147, 0.5),
-                .key_shadow    = RGBA(0, 0, 0,       0.30),
+                .drag_handle   = RGBA(0, 0, 0,       0.5),
+                .key_shadow    = RGBA(0, 0, 0,       0.4), // Subtle shadow to ground the keys
             };
 
         case COLOR_SCHEME_SILVER:

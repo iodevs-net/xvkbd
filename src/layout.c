@@ -76,7 +76,7 @@ static KeyDef default_keys[] = {
     {0,            0,             0, "fn",   NULL, true,  8, 0},
     {XK_Control_L, 0,             0, "ctrl", NULL, false, 8, 0},
     {XK_Alt_L,     0,             0, "alt",  NULL, false, 8, 0},
-    {XK_Super_L,   0,             0, "⌘",   NULL, false, 8, 0},
+    {XK_Super_L,   0,             0, "mic",  NULL, false, 8, 0},
     {XK_space,     0,             0, " ",    NULL, false, 36, 0},
     {XK_Super_R,   0,             0, "size", NULL, false, 8, 0},
     {XK_Alt_R,     0,             0, "alt",  NULL, false, 8, 0},
@@ -104,7 +104,7 @@ void layout_init(Layout *l) {
         if (strcmp(k->label, "⇧") == 0)
             k->flags = KEYFLAG_SHIFT | KEYFLAG_MODIFIER;
         else if (strcmp(k->label, "fn") == 0 || strcmp(k->label, "ctrl") == 0 ||
-                 strcmp(k->label, "alt") == 0 || strcmp(k->label, "⌘") == 0 ||
+                 strcmp(k->label, "alt") == 0 || strcmp(k->label, "mic") == 0 ||
                  strcmp(k->label, "size") == 0 || strcmp(k->label, "⇥") == 0 ||
                  strcmp(k->label, "⌫") == 0 || strcmp(k->label, "⏎") == 0 ||
                  strcmp(k->label, "←") == 0 || strcmp(k->label, "↑") == 0 ||
