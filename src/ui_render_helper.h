@@ -22,7 +22,7 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
                             bool draw_dynamic);
 
 // Draw the menu bar
-void ui_render_draw_menu_bar(Renderer *renderer, int win_width,
+void ui_render_draw_menu_bar(Renderer *renderer, UI *ui,
                             double opacity, int font_size,
                             ColorScheme scheme);
 

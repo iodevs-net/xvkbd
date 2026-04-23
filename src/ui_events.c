@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+static bool rectangle_contains(Rectangle r, int x, int y) {
+    return x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
+}
+
 void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) {
     if (!ui) return;
 
@@ -46,17 +50,16 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
     int mx = wx;
     int my = wy;
 
-    // Menu bar buttons — proportional hitboxes
+    // Menu bar buttons — dynamic hitboxes from cache
     if (my < MENU_BAR_HEIGHT && ui->menu_visible) {
-        int zone_w = ui->current_width / 8; // Narrower zones
-        if (mx < zone_w) {
+        // Check cached hitboxes
+        if (rectangle_contains(ui->menu_btn_bounds[0], mx, my)) {
             ui_set_opacity(ui, ui->opacity - MENU_OPACITY_STEP);
-        } else if (mx < zone_w * 2) {
+        } else if (rectangle_contains(ui->menu_btn_bounds[1], mx, my)) {
             ui_set_opacity(ui, ui->opacity + MENU_OPACITY_STEP);
-        } else if (mx > zone_w * 5 && mx < zone_w * 7) {
+        } else if (rectangle_contains(ui->menu_btn_bounds[2], mx, my)) {
             ui_set_color_scheme(ui, (ui->color_scheme_index + 1) % NUM_COLOR_SCHEMES);
-        } else if (mx > ui->current_width - zone_w) {
-            // Close button [x] at far right
+        } else if (rectangle_contains(ui->menu_btn_bounds[3], mx, my)) {
             ui->should_close = true;
         }
         return;
@@ -112,8 +115,15 @@ void ui_handle_button_press(UI *ui, int wx, int wy, int rx, int ry, int button) 
                         // to ensure no intermediate flicker or WM corrections.
                         ui_apply_geometry(ui, new_wx, new_wy);
                     } else if (sym == XK_Super_L) {
-                        // Microphone key triggers the voice script
-                        system("/usr/local/bin/0-voice &");
+                        // Microphone key toggles recording
+                        if (access("/tmp/0-voice-recording", F_OK) == 0) {
+                            // Recording is active, kill arecord to stop immediately
+                            // arecord will return, and the 0-voice script will proceed to transcription
+                            system("pkill -TERM arecord");
+                        } else {
+                            // Start new recording
+                            system("/usr/local/bin/0-voice &");
+                        }
                         ui->dirty = true;
                     } else {
                         keyboard_press_key(ui->keyboard, i);

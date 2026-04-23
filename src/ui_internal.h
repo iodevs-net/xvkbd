@@ -54,6 +54,7 @@ struct UI {
     // Interaction state
     bool dragging;
     int drag_offset_x, drag_offset_y;
+    Rectangle menu_btn_bounds[4]; // 0: minus, 1: plus, 2: theme, 3: close
 };
 
 // Internal helpers

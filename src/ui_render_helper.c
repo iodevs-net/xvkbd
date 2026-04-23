@@ -4,6 +4,7 @@
  * Licensed under the MIT License.
  */
 #include "ui_render_helper.h"
+#include "ui_internal.h"
 #include "constants.h"
 #include "layout.h"
 #define XK_MISCELLANY
@@ -84,13 +85,25 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
 
         // --- Key color selection (Using Enhanced Metadata) ---
         Color key_color;
+        Color apple_orange = {1.0, 0.58, 0.0, 1.0}; // #FF9500
         
+        bool is_shift_key = (key->flags & KEYFLAG_SHIFT) != 0;
+        bool is_caps_lock = (key->normal == XK_Caps_Lock);
+
         if (is_pressed) {
             key_color = scheme.key_pressed;
         } else if (label && strcmp(label, "mic") == 0 && access("/tmp/0-voice-recording", F_OK) == 0) {
             key_color = (Color){0.9, 0.2, 0.2, 1.0}; // Red when recording
         } else if (is_active_modifier) {
-            key_color = scheme.shift_active;
+            if (is_shift_key && !state.shift_locked) {
+                // One-Shot Shift: Keep background normal (gray), outline will be orange
+                key_color = scheme.key_modifier;
+            } else if (is_shift_key || is_caps_lock) {
+                // Locked Shift or Caps Lock: Fill background with Orange
+                key_color = apple_orange;
+            } else {
+                key_color = scheme.shift_active; // Other modifiers use default active color
+            }
         } else if (meta->is_special) {
             key_color = scheme.key_special;
         } else if (meta->is_modifier) {
@@ -114,8 +127,9 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
 
         // 4. Active modifier accent border
         if (is_active_modifier && !is_pressed) {
+            Color outline_color = (is_shift_key || is_caps_lock) ? apple_orange : scheme.accent;
             renderer_draw_rectangle_outline(renderer, kb,
-                color_with_opacity(scheme.accent, opacity * 0.8),
+                color_with_opacity(outline_color, opacity * 0.9),
                 2.0, KEY_CORNER_RADIUS);
         }
 
@@ -132,50 +146,55 @@ void ui_render_draw_keyboard(Renderer *renderer, Keyboard *keyboard,
     }
 }
 
-void ui_render_draw_menu_bar(Renderer *renderer, int win_width,
+void ui_render_draw_menu_bar(Renderer *renderer, UI *ui,
                             double opacity, int font_size,
                             ColorScheme scheme) {
-    if (!renderer) return;
+    if (!renderer || !ui) return;
 
-    Rectangle menu_bar = {0, 0, win_width, MENU_BAR_HEIGHT};
-    Color menu_color = color_with_opacity(scheme.background, opacity);
-    renderer_draw_rectangle(renderer, menu_bar, menu_color, 0);
+    Rectangle menu_bar = {0, 0, ui->current_width, MENU_BAR_HEIGHT};
+    Color menu_bg = color_with_opacity(scheme.background, opacity);
+    // Deep Space Gray for the bar
+    menu_bg.red *= 0.8; menu_bg.green *= 0.8; menu_bg.blue *= 0.8;
+    renderer_draw_rectangle(renderer, menu_bar, menu_bg, 10.0); // Rounded top bar
 
-    // Divider line at bottom of menu
-    Rectangle divider = {0, MENU_BAR_HEIGHT - 1, win_width, 1};
-    Color div_color = color_with_opacity(scheme.key_modifier, opacity * 0.5);
-    renderer_draw_rectangle(renderer, divider, div_color, 0);
+    FontSpec font = {"Inter", (int)(font_size * 0.65), false, false};
+    FontSpec font_branding = {"Inter", (int)(font_size * 0.50), false, false};
+    Color text_color = color_with_opacity(scheme.text_primary, opacity);
+    Color pill_color = color_with_opacity(scheme.key_modifier, opacity * 0.5);
 
-    char menu_left[128];
-    snprintf(menu_left, sizeof(menu_left), "[-] opacity [+]    [theme]");
-    
-    char menu_right[64];
-    snprintf(menu_right, sizeof(menu_right), "[x]");
+    // 1. Branding (Centered)
+    Rectangle branding_rect = {0, 0, ui->current_width, MENU_BAR_HEIGHT};
+    renderer_draw_text(renderer, "0-Board by Leonardo Vergara - iodevs.net", 
+                      branding_rect, font_branding, 
+                      color_with_opacity(scheme.text_secondary, opacity * 0.7), 
+                      ALIGN_CENTER, VALIGN_CENTER);
 
-    FontSpec font = {
-        "Inter", (int)(font_size * 0.75), false, false
-    };
-    Color text_color = color_with_opacity(scheme.text_secondary, opacity);
-    
-    // Left controls
-    Rectangle left_bounds = {20, 0, win_width - 40, MENU_BAR_HEIGHT};
-    renderer_draw_text(renderer, menu_left, left_bounds, font, text_color,
-                      ALIGN_LEFT, VALIGN_CENTER);
-                      
-    // Right controls
-    Rectangle right_bounds = {0, 0, win_width - 20, MENU_BAR_HEIGHT};
-    renderer_draw_text(renderer, menu_right, right_bounds, font, text_color,
-                      ALIGN_RIGHT, VALIGN_CENTER);
+    // 2. Buttons
+    // Button 0: Minus
+    renderer_draw_rectangle(renderer, ui->menu_btn_bounds[0], pill_color, ui->menu_btn_bounds[0].height/2);
+    renderer_draw_text(renderer, "−", ui->menu_btn_bounds[0], font, text_color, ALIGN_CENTER, VALIGN_CENTER);
+
+    // Button 1: Plus
+    renderer_draw_rectangle(renderer, ui->menu_btn_bounds[1], pill_color, ui->menu_btn_bounds[1].height/2);
+    renderer_draw_text(renderer, "+", ui->menu_btn_bounds[1], font, text_color, ALIGN_CENTER, VALIGN_CENTER);
+
+    // Button 2: Theme (Palette Icon)
+    Rectangle btn_theme = ui->menu_btn_bounds[2];
+    renderer_draw_rectangle(renderer, btn_theme, pill_color, btn_theme.height/2);
+    int dot_size = 4;
+    int dots_y = btn_theme.y + (btn_theme.height - dot_size) / 2;
+    renderer_draw_rectangle(renderer, (Rectangle){btn_theme.x + 6, dots_y, dot_size, dot_size}, (Color){0.9, 0.4, 0.4, opacity}, 2);
+    renderer_draw_rectangle(renderer, (Rectangle){btn_theme.x + 14, dots_y, dot_size, dot_size}, (Color){0.4, 0.9, 0.4, opacity}, 2);
+    renderer_draw_rectangle(renderer, (Rectangle){btn_theme.x + 22, dots_y, dot_size, dot_size}, (Color){0.4, 0.4, 0.9, opacity}, 2);
+
+    // Button 3: Close (Red Circle)
+    Rectangle btn_close = ui->menu_btn_bounds[3];
+    Color apple_red = {1.0, 0.37, 0.34, opacity};
+    renderer_draw_rectangle(renderer, btn_close, apple_red, btn_close.height/2);
 }
 
 void ui_render_draw_drag_handle(Renderer *renderer, int win_width,
                                ColorScheme scheme, double opacity) {
-    if (!renderer) return;
-    
-    double handle_w = 40;
-    double handle_h = 4;
-    Rectangle handle = {(win_width - handle_w)/2, (MENU_BAR_HEIGHT - handle_h)/2, (int)handle_w, (int)handle_h};
-    
-    renderer_draw_rectangle(renderer, handle, 
-        color_with_opacity(scheme.drag_handle, opacity), 2);
+    (void)renderer; (void)win_width; (void)scheme; (void)opacity;
+    // Drag handle removed as per user request for a cleaner look
 }

@@ -23,6 +23,7 @@ typedef enum {
 // Keyboard state
 typedef struct {
     KeyboardLayer current_layer;
+    bool shift_locked;
     bool caps_lock;
     bool num_lock;
     bool scroll_lock;

@@ -84,6 +84,25 @@ void ui_calculate_layout(UI *ui) {
         }
     }
 
+    // Calculate menu button hitboxes (Touch-friendly but balanced)
+    if (ui->menu_visible) {
+        int btn_size = 22; // Standardized size for all
+        int btn_y = (MENU_BAR_HEIGHT - btn_size) / 2;
+        int margin = 12;
+
+        // Group 1 (Left): [-] [+]
+        // Button 0: Minus
+        ui->menu_btn_bounds[0] = (Rectangle){margin, btn_y, btn_size, btn_size};
+        // Button 1: Plus
+        ui->menu_btn_bounds[1] = (Rectangle){margin + btn_size + 10, btn_y, btn_size, btn_size};
+
+        // Group 2 (Right): [Theme] [Close]
+        // Button 2: Theme
+        ui->menu_btn_bounds[2] = (Rectangle){ui->current_width - (btn_size * 2) - 20 - margin, btn_y, btn_size + 10, btn_size};
+        // Button 3: Close
+        ui->menu_btn_bounds[3] = (Rectangle){ui->current_width - btn_size - margin, btn_y, btn_size, btn_size};
+    }
+
     // Mark background as dirty to force a cache refresh on next frame
     ui->bg_dirty = true;
     ui->dirty = true;
@@ -222,7 +241,7 @@ static void ui_render_frame(UI *ui) {
 
     // 3. Draw menu bar if visible
     if (ui->menu_visible) {
-        ui_render_draw_menu_bar(ui->renderer, ui->current_width,
+        ui_render_draw_menu_bar(ui->renderer, ui,
                                ui->opacity, (int)(ui->current_width * 0.03),
                                ui->cached_scheme);
         ui_render_draw_drag_handle(ui->renderer, ui->current_width,
@@ -287,7 +306,9 @@ void ui_run_with_shutdown(UI *ui, volatile sig_atomic_t *shutdown_flag) {
 double ui_get_opacity(const UI *ui) { return ui ? ui->opacity : 0.0; }
 
 void ui_set_opacity(UI *ui, double opacity) {
-    if (!ui || opacity < MIN_OPACITY || opacity > MAX_OPACITY) return;
+    if (!ui) return;
+    if (opacity < MIN_OPACITY) opacity = MIN_OPACITY;
+    if (opacity > MAX_OPACITY) opacity = MAX_OPACITY;
     ui->opacity = opacity;
     ui->dirty = true;
     x11_window_set_opacity(ui->window, opacity);
@@ -327,8 +348,26 @@ void ui_set_size_index(UI *ui, int size_index) {
     ui_calculate_layout(ui);
 }
 
-void ui_show_menu(UI *ui) { if (ui) { ui->menu_visible = true; ui_calculate_layout(ui); } }
-void ui_hide_menu(UI *ui) { if (ui) { ui->menu_visible = false; ui_calculate_layout(ui); } }
+void ui_show_menu(UI *ui) { 
+    if (ui && !ui->menu_visible) { 
+        int x, y;
+        x11_window_get_position(ui->window, &x, &y);
+        ui->menu_visible = true; 
+        ui_calculate_layout(ui); 
+        // Move window up by menu height so keys don't shift down on screen
+        ui_apply_geometry(ui, x, y - MENU_BAR_HEIGHT);
+    } 
+}
+void ui_hide_menu(UI *ui) { 
+    if (ui && ui->menu_visible) { 
+        int x, y;
+        x11_window_get_position(ui->window, &x, &y);
+        ui->menu_visible = false; 
+        ui_calculate_layout(ui); 
+        // Move window down to reclaim the menu space
+        ui_apply_geometry(ui, x, y + MENU_BAR_HEIGHT);
+    } 
+}
 
 void ui_toggle_dock_position(UI *ui) {
     if (!ui || !ui->window) return;

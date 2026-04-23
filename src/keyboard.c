@@ -100,6 +100,7 @@ KeyboardState keyboard_get_state(const Keyboard *kb) {
     KeyboardState s = {0}; 
     if (kb) {
         s.current_layer = (KeyboardLayer)kb->state.active_layer;
+        s.shift_locked = kb->state.shift_locked;
         s.caps_lock = kb->state.caps_lock;
         s.pressed_key_index = kb->state.pressed_key_index;
         s.dirty = kb->state.dirty;
